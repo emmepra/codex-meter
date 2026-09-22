@@ -14,3 +14,7 @@ xcrun swiftc -swift-version 5 -parse-as-library -module-cache-path .build/module
 xcrun swiftc -swift-version 5 -parse-as-library -module-cache-path .build/module-cache \
   Sources/UsageSnapshot.swift Sources/ComputeBudget.swift Tests/ComputeBudgetTests.swift -o .build/budget-tests
 .build/budget-tests
+
+xcrun swiftc -swift-version 5 -parse-as-library -module-cache-path .build/module-cache \
+  Sources/PanelPlacement.swift Tests/PanelPlacementTests.swift -o .build/placement-tests
+.build/placement-tests

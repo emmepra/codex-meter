@@ -261,7 +261,8 @@ struct MeterPanel: View {
 final class MeterDelegate: NSObject, NSApplicationDelegate {
     private let store = MeterStore()
     private var statusItem: NSStatusItem!
-    private let popover = NSPopover()
+    private lazy var panel = StatusPanel(content: AnyView(MeterPanel(store: store)),
+                                         anchor: { [weak self] in self?.statusItem?.button?.window })
     private var pendingPanelOpen = false
     private var openAttempts = 0
 
@@ -277,8 +278,6 @@ final class MeterDelegate: NSObject, NSApplicationDelegate {
         statusItem.button?.action = #selector(togglePanel)
         statusItem.button?.font = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .regular)
         statusItem.button?.imagePosition = .imageLeading
-        popover.behavior = .transient
-        popover.contentViewController = NSHostingController(rootView: MeterPanel(store: store))
         store.onChange = { [weak self] in self?.updateStatus() }
         updateStatus()
         store.start()
@@ -290,30 +289,25 @@ final class MeterDelegate: NSObject, NSApplicationDelegate {
     }
     func applicationWillTerminate(_ notification: Notification) { store.stop() }
     @objc private func togglePanel() {
-        if popover.isShown {
+        if panel.isVisible {
             pendingPanelOpen = false
-            popover.performClose(nil)
+            panel.hide()
         } else { requestPanelOpen() }
     }
     private func requestPanelOpen() {
-        guard !popover.isShown else { return }
+        guard !panel.isVisible else { return }
         pendingPanelOpen = true
         openAttempts = 0
         attemptPanelOpen()
     }
     private func attemptPanelOpen() {
         guard pendingPanelOpen, let button = statusItem?.button else { return }
-        // AppKit silently ignores show() before it has positioned the status item.
+        // Wait for AppKit to position the status item before using screen coordinates.
         if let window = button.window, window.isVisible, window.frame.height > 0 {
             pendingPanelOpen = false
             store.now = Date()
             if store.updatedAt.map({ Date().timeIntervalSince($0) > 180 }) ?? true { store.refresh() }
-            NSApplication.shared.activate(ignoringOtherApps: true)
-            // The status button's bounds can describe only its 22-point content,
-            // inset inside a taller menu bar. Anchor to its full visible surface.
-            popover.show(relativeTo: button.visibleRect, of: button,
-                         preferredEdge: button.isFlipped ? .maxY : .minY)
-            if popover.isShown { return }
+            if panel.show() { return }
             pendingPanelOpen = true
         }
         guard openAttempts < 10 else { return }
@@ -332,6 +326,7 @@ final class MeterDelegate: NSObject, NSApplicationDelegate {
             "Codex · \($0.window.label) · \(percentage(used)) consumato\nReset: \(resetDate($0.window.resetsAt) ?? "non disponibile")\(store.uncertain ? "\nDati da aggiornare" : "")"
         } ?? "Codex Meter · limiti non disponibili"
         button.setAccessibilityLabel(button.toolTip)
+        panel.schedulePosition()
         if pendingPanelOpen { attemptPanelOpen() }
     }
     private func ringImage(used: Double?, uncertain: Bool) -> NSImage {

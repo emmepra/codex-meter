@@ -26,7 +26,7 @@ The installer builds the app locally. See the [installation guide](docs/INSTALL.
 
 ## Use
 
-Click the menu bar indicator to open the compact panel. The ring and menu bar percentage show **consumed quota**; the larger percentage in the panel shows **remaining quota**.
+Click the menu bar indicator to open the compact panel, anchored directly below the menu bar even when its content changes height. The ring and menu bar percentage show **consumed quota**; the larger percentage in the panel shows **remaining quota**.
 
 The `…` menu contains **Solo anello nella barra** (ring only), available quota windows, refresh and **Esci** (quit). Usage refreshes every three minutes and after wake; the arrow refreshes immediately. Automatic launch at login is not enabled.
 
@@ -54,12 +54,13 @@ See the [official Codex App Server documentation](https://learn.chatgpt.com/docs
 ## Develop
 
 ```sh
-./scripts/test.sh       # Offline model, budget and process-lifecycle tests
+./scripts/test.sh       # Offline model, budget, geometry and process-lifecycle tests
+./scripts/test-ui.sh    # Native window layout checks; briefly shows synthetic UI
 ./scripts/build.sh      # .build/Codex Meter.app
 ".build/Codex Meter.app/Contents/MacOS/CodexMeter" --check  # Live read, no UI
 ```
 
-Source is split into the menu bar UI, CLI client, usage decoder and budget calculations under `Sources/`. Tests use synthetic data and local stub processes; they do not need a Codex login or network access.
+Source is split into the menu bar UI and panel positioning, CLI client, usage decoder and budget calculations under `Sources/`. Tests use synthetic data and local stub processes; they do not need a Codex login or network access. The optional UI tests require a logged-in macOS desktop and check actual window coordinates after content growth, shrinkage and menu bar item movement.
 
 Builds target macOS 13+ and have been tested locally on macOS 26.6.2. A complete live reset cycle and older macOS releases have not yet been exercised. Issues and small, focused pull requests are welcome; include the macOS and Codex CLI versions when reporting a bug.
 
