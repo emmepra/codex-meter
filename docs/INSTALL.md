@@ -1,22 +1,13 @@
 # Install Codex Meter
 
-Build the app locally from source. The interface is currently in Italian; this guide names the relevant menu items.
+Download the app from GitHub Releases, or build it from source. The interface is currently in Italian; this guide names the relevant menu items.
 
 ## Requirements
 
-- An Apple Silicon Mac. The build targets macOS 13 or later; local testing has been on macOS 26.6.2. Intel builds and older macOS versions have not been verified.
-- Xcode Command Line Tools with Swift 5.9 or later.
-- Git.
+- An Apple Silicon Mac with macOS 13 or later. Local app testing has been on macOS 26.6.2; Intel builds and older macOS releases have not been verified.
 - Codex CLI installed and signed in with the ChatGPT account whose quota you want to monitor.
 
-Install Apple's Command Line Tools if needed, then check the compiler:
-
-```sh
-xcode-select --install
-xcrun swiftc --version
-```
-
-If the tools are already installed, skip the first command.
+The downloaded app does not require Xcode, a Swift compiler or a source checkout. Building from source additionally requires Git and Xcode Command Line Tools with Swift 5.9 or later.
 
 ## Install Codex CLI and sign in
 
@@ -43,7 +34,26 @@ codex login status
 
 Complete the browser flow using your ChatGPT account. Codex Meter reads the account-wide ChatGPT quota exposed by the CLI; API billing is outside its scope. The CLI account may differ from the account in your desktop app. Authentication is managed by Codex itself; see [OpenAI's authentication documentation](https://learn.chatgpt.com/docs/auth).
 
-## Build and install
+## Download and install
+
+1. Open the [latest release](https://github.com/emmepra/codex-meter/releases/latest).
+2. Under **Assets**, download the **Apple Silicon ZIP** containing the app. GitHub's separate **Source code** archives contain the source project, not a ready-to-run app.
+3. Double-click the ZIP in Finder to extract **Codex Meter.app**.
+4. Move the app to **Applications**, or to `~/Applications` for an installation in your own user folder.
+5. Open **Codex Meter.app** and follow the [first-launch instructions](#first-launch) if macOS blocks it.
+
+The release app is ad hoc signed. It has no Apple Developer ID signature and is not notarized. Installation does not sign in to Codex or enable launch at login.
+
+## Build from source (alternative)
+
+Install Apple's Command Line Tools if needed, then check the compiler:
+
+```sh
+xcode-select --install
+xcrun swiftc --version
+```
+
+If the tools are already installed, skip the first command.
 
 In the folder where you keep source projects:
 
@@ -75,6 +85,8 @@ The app uses ad hoc signing for local use and is not notarized. Build output is 
 
 ## First launch
 
+Gatekeeper may block the downloaded app because it has no Developer ID signature or notarization. If you trust the copy downloaded from this repository's release, first try opening it, then open **System Settings → Privacy & Security**. Find the blocked-app notice, choose **Open Anyway**, and confirm **Open** in the next prompt. See [Apple's guide to safely opening apps](https://support.apple.com/en-us/102445) for the current instructions.
+
 Codex Meter appears in the menu bar without a Dock icon. Click the small ring and percentage to open the panel. The percentage in the menu bar is **consumed** quota; **disponibile** in the panel is the remaining quota.
 
 The `…` menu contains:
@@ -89,7 +101,15 @@ Other available quota windows appear in the same menu. Read the [README](../READ
 
 ## Check a problem
 
-From the source checkout, after building:
+To check the installed app's connection without opening its interface, run its executable with `--check`:
+
+```sh
+"/Applications/Codex Meter.app/Contents/MacOS/CodexMeter" --check
+```
+
+Adjust the path if you installed it elsewhere, for example to `$HOME/Applications/Codex Meter.app/Contents/MacOS/CodexMeter`.
+
+From a source checkout, after building, you can also run the offline tests:
 
 ```sh
 ./scripts/test.sh
@@ -104,7 +124,11 @@ If sign-in is required, run `codex login` and use **Aggiorna** in Codex Meter. I
 
 ## Update
 
-Quit Codex Meter using **… → Esci**, then run these commands in your checkout:
+Quit Codex Meter using **… → Esci** before replacing the app.
+
+For a downloaded installation, download the Apple Silicon ZIP from the [latest release](https://github.com/emmepra/codex-meter/releases/latest), extract it, and move the new **Codex Meter.app** into the same Applications folder, replacing the previous copy. Open the new app; macOS may ask you to confirm it again. Display preferences are preserved.
+
+For a source installation, run these commands in your checkout:
 
 ```sh
 git pull --ff-only
@@ -118,6 +142,6 @@ Codex CLI updates are separate. Use the package manager you originally chose: `b
 
 ## Uninstall
 
-Choose **… → Esci**, then move `~/Applications/Codex Meter.app` to the Trash in Finder. For a custom installation, remove the app from that destination instead.
+Choose **… → Esci**, then move **Codex Meter.app** from its installation folder to the Trash in Finder. This may be `/Applications`, `~/Applications`, or a custom destination.
 
 This removes Codex Meter only. The Codex CLI, its sign-in credentials and configuration, and your source checkout remain in place. There is no need to run `codex logout` or remove `~/.codex`. Codex Meter's small display preferences remain available if you reinstall it.

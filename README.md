@@ -13,16 +13,13 @@ The interface is currently in Italian. This is an independent project, not affil
 
 ## Install
 
-You need an **Apple Silicon Mac**, macOS **13 or later**, current Xcode Command Line Tools, and the **Codex CLI signed in with ChatGPT**.
+You need an **Apple Silicon Mac**, macOS **13 or later**, and the **Codex CLI signed in with ChatGPT**.
 
-```sh
-git clone https://github.com/emmepra/codex-meter.git
-cd codex-meter
-./scripts/install.sh
-open "$HOME/Applications/Codex Meter.app"
-```
+1. Open the [latest release](https://github.com/emmepra/codex-meter/releases/latest) and download the **Apple Silicon ZIP** under **Assets**.
+2. Unzip it and move **Codex Meter.app** to your Applications folder.
+3. Open the app. No compiler or source checkout is needed.
 
-The installer builds the app locally. See the [installation guide](docs/INSTALL.md) for prerequisites, custom destinations, updates and troubleshooting. Builds are locally signed; no notarized binary release is provided.
+The app is **ad hoc signed**, without an Apple Developer ID signature or notarization, so Gatekeeper may block the first launch. The [installation guide](docs/INSTALL.md#first-launch) explains Apple's **Open Anyway** procedure, along with [CLI setup](docs/INSTALL.md#install-codex-cli-and-sign-in), [building from source](docs/INSTALL.md#build-from-source-alternative), updates and troubleshooting.
 
 ## Use
 
@@ -63,6 +60,10 @@ See the [official Codex App Server documentation](https://learn.chatgpt.com/docs
 Source is split into the menu bar UI and panel positioning, CLI client, usage decoder and budget calculations under `Sources/`. Tests use synthetic data and local stub processes; they do not need a Codex login or network access. The optional UI tests require a logged-in macOS desktop and check actual window coordinates after content growth, shrinkage and menu bar item movement.
 
 Builds target macOS 13+ and have been tested locally on macOS 26.6.2. A complete live reset cycle and older macOS releases have not yet been exercised. Issues and small, focused pull requests are welcome; include the macOS and Codex CLI versions when reporting a bug.
+
+## Releases
+
+Versioning, packaging and the tag-triggered GitHub Actions workflow are described in the [release guide](docs/RELEASING.md).
 
 ## License
 
