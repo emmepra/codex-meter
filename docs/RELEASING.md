@@ -12,10 +12,15 @@ No manual upload or personal token is needed in Actions.
 2. Run `./scripts/test.sh` and `./scripts/package-release.sh`. For UI changes,
    also run `./scripts/test-ui.sh` in a logged-in macOS desktop and check the app.
    Packaging does not launch the app or make a live quota read.
-3. Commit the changes, push `main`, and wait for **Build and release** to pass.
+3. Submit the version and notes through a pull request, following
+   [Contributing](../CONTRIBUTING.md). After review and the required **build** check
+   pass, merge the PR. `main` is protected, including for administrators.
+   Wait for **Build and release** on the resulting `main` commit to pass.
 4. From that clean, up-to-date commit, create and push the matching tag:
 
    ```sh
+   git switch main
+   git pull --ff-only
    version=$(cat VERSION)
    git tag -a "v$version" -m "Codex Meter $version"
    git push origin "v$version"
@@ -25,7 +30,7 @@ No manual upload or personal token is needed in Actions.
    [release](https://github.com/emmepra/codex-meter/releases). Confirm the version,
    installation notes, ZIP and checksum, and download the ZIP once to verify it.
 
-Pushing a tag is the publication step. Ordinary branch pushes and pull requests
+Pushing a tag is the publication step. Pushes to `main` and pull requests
 run tests and retain build artifacts for 14 days; they do not create a release.
 
 ## What the workflow does

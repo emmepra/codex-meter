@@ -7,7 +7,7 @@ INSTALL_DIR="$HOME/Applications"
 usage() {
   printf '%s\n' 'Usage: ./scripts/install.sh [--destination DIRECTORY]' \
     'Build and install Codex Meter. Default destination: ~/Applications.' \
-    'Quit Codex Meter from its … > Esci menu before installing or updating.'
+    'Quit Codex Meter from its … > Quit menu before installing or updating.'
 }
 
 while [[ $# -gt 0 ]]; do
@@ -32,7 +32,7 @@ require_stopped() {
   /usr/bin/pgrep -x CodexMeter >/dev/null || process_status=$?
   case "$process_status" in
     0)
-      printf '%s\n' 'Codex Meter is running. Choose … > Esci (Quit) in its menu, then retry.' >&2
+      printf '%s\n' 'Codex Meter is running. Choose … > Quit in its menu, then retry.' >&2
       exit 1
       ;;
     1) ;;

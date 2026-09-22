@@ -1,0 +1,25 @@
+name: Feature proposal
+description: Propose a focused improvement before implementing it.
+body:
+  - type: markdown
+    attributes:
+      value: Please write in English and keep proposals focused on a small, native menu bar app.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: Describe a concrete use case and who it helps.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: What should change? Include alternatives or tradeoffs if useful.
+    validations:
+      required: true
+  - type: textarea
+    id: contribution
+    attributes:
+      label: How could you help?
+      description: Optional implementation, testing, documentation, or feedback you can contribute.

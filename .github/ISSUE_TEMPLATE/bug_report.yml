@@ -1,0 +1,32 @@
+name: Bug report
+description: Report behavior that does not work as expected.
+body:
+  - type: markdown
+    attributes:
+      value: Please write in English. Do not include credentials, raw account responses, personal paths, or real usage snapshots. Use synthetic or redacted examples.
+  - type: input
+    id: environment
+    attributes:
+      label: Versions and setup
+      description: Codex Meter version, macOS version, Mac chip, Codex CLI version, and ZIP or source installation.
+      placeholder: e.g. Codex Meter 0.3.2, macOS 15.6, M1, Codex CLI version, release ZIP
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Include the shortest steps that show the issue and any relevant display setup.
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Expected and actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Additional context
+      description: Optional synthetic screenshots, a sanitized error message, or checks you have already tried.

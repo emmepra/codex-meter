@@ -1,6 +1,6 @@
 # Install Codex Meter
 
-Download the app from GitHub Releases, or build it from source. The interface is currently in Italian; this guide names the relevant menu items.
+Download the app from GitHub Releases, or build it from source.
 
 ## Requirements
 
@@ -64,7 +64,7 @@ cd codex-meter
 open "$HOME/Applications/Codex Meter.app"
 ```
 
-The installer runs `scripts/build.sh`, verifies the app's local code signature, and copies it to `~/Applications/Codex Meter.app`. It does not require administrator access for this destination. It stops if Codex Meter is running: open the app's `…` menu, select **Esci** (Quit), then retry. The installer does not quit apps, sign in, or enable launch at login.
+The installer runs `scripts/build.sh`, verifies the app's local code signature, and copies it to `~/Applications/Codex Meter.app`. It does not require administrator access for this destination. It stops if Codex Meter is running: open the app's **Options** (`…`) menu, select **Quit**, then retry. The installer does not quit apps, sign in, or enable launch at login.
 
 To select another destination directory:
 
@@ -87,15 +87,15 @@ The app uses ad hoc signing for local use and is not notarized. Build output is 
 
 Gatekeeper may block the downloaded app because it has no Developer ID signature or notarization. If you trust the copy downloaded from this repository's release, first try opening it, then open **System Settings → Privacy & Security**. Find the blocked-app notice, choose **Open Anyway**, and confirm **Open** in the next prompt. See [Apple's guide to safely opening apps](https://support.apple.com/en-us/102445) for the current instructions.
 
-Codex Meter appears in the menu bar without a Dock icon. Click the small ring and percentage to open the panel. The percentage in the menu bar is **consumed** quota; **disponibile** in the panel is the remaining quota.
+Codex Meter appears in the menu bar without a Dock icon. Click the small ring and percentage to open the panel. The percentage in the menu bar is **used** quota; **remaining** in the panel is the quota still available. **Resets in** shows the reset countdown.
 
-The `…` menu contains:
+The **Options** (`…`) menu contains:
 
-| Italian label | Meaning |
+| Menu item | Action |
 | --- | --- |
-| Solo anello nella barra | Show only the ring in the menu bar |
-| Aggiorna | Refresh now |
-| Esci | Quit |
+| Ring only | Show only the ring in the menu bar |
+| Refresh | Read current usage |
+| Quit | Close Codex Meter |
 
 Other available quota windows appear in the same menu. Read the [README](../README.md) for the budget calculations and their limits.
 
@@ -120,11 +120,11 @@ The tests use synthetic data without login or network access. `--check` makes a 
 
 If the CLI is not found, check `command -v codex`. Codex Meter looks in `~/.local/bin`, `/opt/homebrew/bin`, `/usr/local/bin`, then its inherited `PATH`. Finder-launched apps may have a different `PATH` from Terminal, especially with Node version managers. A Homebrew installation uses one of the explicit locations.
 
-If sign-in is required, run `codex login` and use **Aggiorna** in Codex Meter. If an error persists, check that the CLI works and that your network connection is available. Unknown quota values remain unavailable; an old value after a failed refresh is marked as stale.
+If sign-in is required, run `codex login` and use **Refresh** in Codex Meter. If an error persists, check that the CLI works and that your network connection is available. Unknown quota values remain unavailable; an old value after a failed refresh is marked as stale.
 
 ## Update
 
-Quit Codex Meter using **… → Esci** before replacing the app.
+Quit Codex Meter using **Options → Quit** before replacing the app.
 
 For a downloaded installation, download the Apple Silicon ZIP from the [latest release](https://github.com/emmepra/codex-meter/releases/latest), extract it, and move the new **Codex Meter.app** into the same Applications folder, replacing the previous copy. Open the new app; macOS may ask you to confirm it again. Display preferences are preserved.
 
@@ -142,6 +142,6 @@ Codex CLI updates are separate. Use the package manager you originally chose: `b
 
 ## Uninstall
 
-Choose **… → Esci**, then move **Codex Meter.app** from its installation folder to the Trash in Finder. This may be `/Applications`, `~/Applications`, or a custom destination.
+Choose **Options → Quit**, then move **Codex Meter.app** from its installation folder to the Trash in Finder. This may be `/Applications`, `~/Applications`, or a custom destination.
 
 This removes Codex Meter only. The Codex CLI, its sign-in credentials and configuration, and your source checkout remain in place. There is no need to run `codex logout` or remove `~/.codex`. Codex Meter's small display preferences remain available if you reinstall it.
