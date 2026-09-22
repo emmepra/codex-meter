@@ -9,7 +9,7 @@ A small native macOS menu bar app for checking Codex usage and pacing the quota 
 - **Plan your usage:** daily or hourly allowance, today's budget, average pace and estimated runway.
 - **Lightweight:** AppKit + SwiftUI, no external app dependencies. The Codex reader runs only during refreshes.
 
-The interface is currently in Italian. This is an independent project, not affiliated with OpenAI.
+This is an independent project, not affiliated with OpenAI.
 
 ## Install
 
@@ -23,18 +23,19 @@ The app is **ad hoc signed**, without an Apple Developer ID signature or notariz
 
 ## Use
 
-Click the menu bar indicator to open the compact panel, anchored directly below the menu bar even when its content changes height. The ring and menu bar percentage show **consumed quota**; the larger percentage in the panel shows **remaining quota**.
+Click the menu bar indicator to open the compact panel, anchored directly below the menu bar even when its content changes height. The ring and menu bar percentage show **used quota**; the larger percentage in the panel shows **remaining quota**. **Resets in** shows the time until the next reset.
 
-The `…` menu contains **Solo anello nella barra** (ring only), available quota windows, refresh and **Esci** (quit). Usage refreshes every three minutes and after wake; the arrow refreshes immediately. Automatic launch at login is not enabled.
+The **Options** (`…`) menu contains **Ring only**, available quota windows, **Refresh** and **Quit**. Usage refreshes every three minutes and after wake; the arrow refreshes immediately. Automatic launch at login is not enabled.
 
 ### What the statistics mean
 
 | In the app | Meaning |
 | --- | --- |
-| Budget al giorno / all'ora | Remaining quota divided by time until reset. |
-| Oggi, da ora | The share of that budget available from now to local midnight. |
-| Media del periodo | Current consumption divided by elapsed time in the quota window. |
-| Autonomia a questo ritmo | Estimated time to exhaustion at that average pace. If quota would last, the panel shows the projected amount left at reset instead. |
+| Daily budget / Hourly budget | Remaining quota divided by time until reset. |
+| Today, from now | The share of that budget available from now to local midnight. |
+| Average / day or / hour | Current consumption divided by elapsed time in the quota window. |
+| Runway at this pace | Estimated time to exhaustion at that average pace. |
+| Projected at reset | Estimated quota left at reset, shown when the current average pace would leave quota available. |
 
 Percentages are **points of the whole window's quota**. For example, 75% remaining with 3.5 days until reset gives a daily allowance of about **21.4%**.
 
@@ -59,7 +60,13 @@ See the [official Codex App Server documentation](https://learn.chatgpt.com/docs
 
 Source is split into the menu bar UI and panel positioning, CLI client, usage decoder and budget calculations under `Sources/`. Tests use synthetic data and local stub processes; they do not need a Codex login or network access. The optional UI tests require a logged-in macOS desktop and check actual window coordinates after content growth, shrinkage and menu bar item movement.
 
-Builds target macOS 13+ and have been tested locally on macOS 26.6.2. A complete live reset cycle and older macOS releases have not yet been exercised. Issues and small, focused pull requests are welcome; include the macOS and Codex CLI versions when reporting a bug.
+Builds target macOS 13+ and have been tested locally on macOS 26.6.2. A complete live reset cycle and older macOS releases have not yet been exercised.
+
+## Contributing
+
+Use an [issue](https://github.com/emmepra/codex-meter/issues/new/choose) to report a bug or propose a change. Include the macOS and Codex CLI versions in bug reports.
+
+To contribute code, fork the repository, create a branch and open a pull request. Changes go through maintainer review and CI before merging. See [CONTRIBUTING.md](CONTRIBUTING.md) for the steps and checks.
 
 ## Releases
 

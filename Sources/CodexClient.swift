@@ -43,13 +43,13 @@ enum CodexClientError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .cliNotFound: return "Codex CLI non trovato. Installa la CLI e accedi con il tuo account ChatGPT."
-        case .couldNotStart: return "Impossibile avviare Codex CLI. Verifica che funzioni dal Terminale."
-        case .timeout: return "Codex non ha risposto entro il tempo previsto."
-        case .disconnected: return "La connessione a Codex si è chiusa prima della risposta."
-        case .invalidResponse: return "Codex ha restituito una risposta non riconosciuta."
-        case .requestFailed: return "Impossibile leggere i limiti. Verifica connessione e accesso in Codex."
-        case .loginRequired: return "Accedi a Codex CLI con il tuo account ChatGPT per leggere i limiti."
+        case .cliNotFound: return "Codex CLI not found. Install it and sign in with your ChatGPT account."
+        case .couldNotStart: return "Could not start Codex CLI. Check that it works in Terminal."
+        case .timeout: return "Codex did not respond in time."
+        case .disconnected: return "The connection to Codex closed before a response arrived."
+        case .invalidResponse: return "Codex returned an unrecognized response."
+        case .requestFailed: return "Could not read usage limits. Check your connection and Codex sign-in."
+        case .loginRequired: return "Sign in to Codex CLI with your ChatGPT account to read usage limits."
         }
     }
 }

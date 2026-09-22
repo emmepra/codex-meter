@@ -21,12 +21,12 @@ struct RateLimitWindow: Codable {
     }
 
     var label: String {
-        guard let minutes = windowDurationMins, minutes > 0 else { return "Periodo non specificato" }
-        if minutes == 300 { return "5 ore" }
-        if minutes == 10080 { return "Settimana" }
-        if minutes % 1440 == 0 { return "\(minutes / 1440) \(minutes == 1440 ? "giorno" : "giorni")" }
-        if minutes % 60 == 0 { return "\(minutes / 60) \(minutes == 60 ? "ora" : "ore")" }
-        return "\(minutes) \(minutes == 1 ? "minuto" : "minuti")"
+        guard let minutes = windowDurationMins, minutes > 0 else { return "Unspecified period" }
+        if minutes == 300 { return "5 hours" }
+        if minutes == 10080 { return "Week" }
+        if minutes % 1440 == 0 { return "\(minutes / 1440) \(minutes == 1440 ? "day" : "days")" }
+        if minutes % 60 == 0 { return "\(minutes / 60) \(minutes == 60 ? "hour" : "hours")" }
+        return "\(minutes) \(minutes == 1 ? "minute" : "minutes")"
     }
 }
 
@@ -110,7 +110,7 @@ struct UsageSnapshot {
             let container = try decoder.container(keyedBy: CodingKeys.self)
             guard container.contains(.rateLimitsByLimitId) || container.contains(.rateLimits) else {
                 throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath,
-                    debugDescription: "La risposta non contiene i limiti di utilizzo."))
+                    debugDescription: "The response does not contain usage limits."))
             }
             map = try container.decodeIfPresent([String: RateLimitBucket].self, forKey: .rateLimitsByLimitId)
             // The map, including an empty map, is authoritative when supplied.

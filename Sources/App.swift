@@ -1,17 +1,19 @@
 import AppKit
 import SwiftUI
 
+private let meterLocale = Locale(identifier: "en_GB")
+
 func percentage(_ value: Double?) -> String {
     guard let value, value.isFinite else { return "—" }
     return "\(Int(value.rounded()))%"
 }
 
 func remainingTime(_ reset: Double?, now: Date = Date()) -> String {
-    guard let reset, reset.isFinite else { return "Orario non disponibile" }
+    guard let reset, reset.isFinite else { return "Reset time unavailable" }
     let seconds = reset - now.timeIntervalSince1970
-    guard seconds > 0 else { return "In attesa del reset" }
+    guard seconds > 0 else { return "Waiting for reset" }
     let minutes = Int(ceil(seconds / 60))
-    if minutes >= 1440 { return "\(minutes / 1440) g \((minutes % 1440) / 60) h" }
+    if minutes >= 1440 { return "\(minutes / 1440) d \((minutes % 1440) / 60) h" }
     if minutes >= 60 { return "\(minutes / 60) h \(minutes % 60) min" }
     return "\(minutes) min"
 }
@@ -19,7 +21,7 @@ func remainingTime(_ reset: Double?, now: Date = Date()) -> String {
 func resetDate(_ timestamp: Double?) -> String? {
     guard let timestamp, timestamp.isFinite else { return nil }
     let formatter = DateFormatter()
-    formatter.locale = Locale(identifier: "it_IT")
+    formatter.locale = meterLocale
     formatter.dateFormat = "d MMM, HH:mm"
     return formatter.string(from: Date(timeIntervalSince1970: timestamp))
 }
@@ -96,7 +98,7 @@ final class MeterStore: ObservableObject {
                 error = nil
             } catch {
                 guard !Task.isCancelled else { return }
-                self.error = (error as? LocalizedError)?.errorDescription ?? "Impossibile leggere i limiti. Riprova tra poco."
+                self.error = (error as? CodexClientError)?.errorDescription ?? "Could not read usage limits. Try again shortly."
             }
             now = Date()
             refreshing = false
@@ -106,8 +108,8 @@ final class MeterStore: ObservableObject {
 }
 
 func quotaAmount(_ value: Double) -> String {
-    if value > 0 && value < 0.1 { return "<0,1%" }
-    return value.formatted(.number.locale(Locale(identifier: "it_IT")).precision(.fractionLength(0...1))) + "%"
+    if value > 0 && value < 0.1 { return "<0.1%" }
+    return value.formatted(.number.locale(meterLocale).precision(.fractionLength(0...1))) + "%"
 }
 
 struct ConsumptionTrack: View {
@@ -127,8 +129,8 @@ struct ConsumptionTrack: View {
                 }
             }
         }.frame(height: 4).opacity(faded ? 0.4 : 1)
-            .help("La barra è il consumo. Il segno indica la quota che avresti usato distribuendola uniformemente nel periodo.")
-            .accessibilityLabel("Consumo \(percentage(used))")
+            .help("The bar shows usage. The marker shows how much quota you would have used at a uniform pace throughout the period.")
+            .accessibilityLabel("Used \(percentage(used))")
     }
 }
 
@@ -151,7 +153,7 @@ struct MeterPanel: View {
                 Spacer()
                 if store.refreshing { ProgressView().controlSize(.mini) }
                 Menu {
-                    Toggle("Solo anello nella barra", isOn: $store.iconOnly)
+                    Toggle("Ring only", isOn: $store.iconOnly)
                     if let windows = store.snapshot?.windows, windows.count > 1 {
                         Divider()
                         ForEach(windows) { entry in
@@ -165,13 +167,13 @@ struct MeterPanel: View {
                         }
                     }
                     Divider()
-                    Button("Aggiorna") { store.refresh() }.disabled(store.refreshing)
-                    Button("Esci") { NSApplication.shared.terminate(nil) }
+                    Button("Refresh") { store.refresh() }.disabled(store.refreshing)
+                    Button("Quit") { NSApplication.shared.terminate(nil) }
                 } label: {
                     Image(systemName: "ellipsis").font(.system(size: 11, weight: .medium))
                         .frame(width: 18, height: 14).contentShape(Rectangle())
-                }.menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize().help("Opzioni")
-                    .accessibilityLabel("Opzioni")
+                }.menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize().help("Options")
+                    .accessibilityLabel("Options")
             }
 
             if let entry = store.entry {
@@ -179,14 +181,14 @@ struct MeterPanel: View {
                     HStack(alignment: .firstTextBaseline, spacing: 4) {
                         Text(percentage(entry.window.usedPercent.map { 100 - $0 }))
                             .font(.system(size: 24, weight: .semibold, design: .rounded)).monospacedDigit()
-                        Text("disponibile").font(.system(size: 11)).foregroundStyle(.secondary)
+                        Text("remaining").font(.system(size: 11)).foregroundStyle(.secondary)
                         Spacer()
-                        Text("\(percentage(entry.window.usedPercent)) usato")
+                        Text("\(percentage(entry.window.usedPercent)) used")
                             .font(.system(size: 10)).foregroundStyle(.secondary).monospacedDigit()
                     }.opacity(store.uncertain ? 0.55 : 1)
                     ConsumptionTrack(used: entry.window.usedPercent, elapsed: budget?.elapsedFraction, faded: store.uncertain)
                     HStack(spacing: 3) {
-                        Text(entry.window.resetsAt == nil ? "Reset non disponibile" : (store.resetPending ? "Reset da confermare" : "Reset tra \(remainingTime(entry.window.resetsAt, now: store.now))"))
+                        Text(entry.window.resetsAt == nil ? "Reset time unavailable" : (store.resetPending ? "Reset unconfirmed" : "Resets in \(remainingTime(entry.window.resetsAt, now: store.now))"))
                         Spacer(minLength: 2)
                         if let date = resetDate(entry.window.resetsAt) { Text(date).foregroundStyle(.secondary) }
                     }.font(.system(size: 10)).lineLimit(1)
@@ -194,38 +196,38 @@ struct MeterPanel: View {
                 Divider()
                 if let budget {
                     VStack(spacing: 7) {
-                        stat(daily ? "Budget al giorno" : "Budget all’ora",
+                        stat(daily ? "Daily budget" : "Hourly budget",
                              quotaAmount(daily ? budget.budgetPerDay : budget.budgetPerHour),
                              prominent: true)
-                            .help("Quota residua divisa per il tempo al reset. Percentuale della quota totale distribuibile ogni \(daily ? "24 ore" : "ora"), da adesso.")
+                            .help("Remaining quota divided by time until reset. Percentage points of the total quota available every \(daily ? "24 hours" : "hour"), starting now.")
                         if let endOfDay = Calendar.current.dateInterval(of: .day, for: store.now)?.end,
                            endOfDay.timeIntervalSince(store.now) < budget.remainingSeconds {
                             let todayBudget = budget.remainingPercent * endOfDay.timeIntervalSince(store.now) / budget.remainingSeconds
-                            stat("Oggi, da ora", quotaAmount(todayBudget))
-                                .help("Quota distribuibile da adesso a mezzanotte, al ritmo del budget indicato.")
+                            stat("Today, from now", quotaAmount(todayBudget))
+                                .help("Quota available from now until midnight at the budgeted pace.")
                         }
-                        stat(daily ? "Media del periodo / giorno" : "Media del periodo / ora",
+                        stat(daily ? "Average / day" : "Average / hour",
                              budget.averagePerDay.map { quotaAmount(daily ? $0 : $0 / 24) } ?? "—")
-                            .help("Media stimata dall’inizio del periodo: consumo diviso per tempo trascorso. L’inizio è ricavato da reset e durata; non è uno storico delle giornate.")
+                            .help("Estimated average since the start of the period: usage divided by elapsed time. The start is inferred from the reset and duration; this is not a record of daily usage.")
                         if budget.remainingPercent == 0 {
-                            stat("Quota esaurita", "Attendi il reset", warning: true)
+                            stat("Quota used up", "Wait for reset", warning: true)
                         } else if let exhaustion = budget.projectedExhaustion,
                                   exhaustion.timeIntervalSince(store.now) < budget.remainingSeconds {
-                            stat("Autonomia a questo ritmo", remainingTime(exhaustion.timeIntervalSince1970, now: store.now), warning: true)
-                                .help("Stima se mantenessi la media dall’inizio del periodo. Il consumo futuro può cambiare.")
+                            stat("Runway at this pace", remainingTime(exhaustion.timeIntervalSince1970, now: store.now), warning: true)
+                                .help("Estimate at the average pace since the start of the period. Future usage may change.")
                         } else if let remaining = budget.projectedRemainingAtReset {
-                            stat("Al reset, a questo ritmo", "\(quotaAmount(remaining)) residuo")
-                                .help("Quota che resterebbe al reset se mantenessi la media dall’inizio del periodo.")
+                            stat("Projected at reset", "\(quotaAmount(remaining)) remaining")
+                                .help("Quota that would remain at reset if you kept the average pace since the start of the period.")
                         } else {
-                            stat("Stima del ritmo", "Dati insufficienti")
+                            stat("Pace estimate", "Not enough data")
                         }
                     }
                 } else if !store.uncertain {
-                    Text("Statistiche disponibili con quota e reset noti.")
+                    Text("Stats require known quota and reset time.")
                         .font(.system(size: 10)).foregroundStyle(.secondary)
                 }
             } else {
-                Text(store.refreshing ? "Lettura dei limiti…" : "Limiti non disponibili")
+                Text(store.refreshing ? "Reading usage limits…" : "Usage limits unavailable")
                     .font(.system(size: 12)).foregroundStyle(.secondary).padding(.vertical, 8)
             }
 
@@ -233,18 +235,18 @@ struct MeterPanel: View {
                 Label(error, systemImage: "exclamationmark.triangle")
                     .font(.system(size: 10)).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
             } else if store.uncertain {
-                Text(store.resetPending ? "Reset da confermare. Statistiche in pausa." : "Dati non aggiornati. Statistiche in pausa.")
+                Text(store.resetPending ? "Reset unconfirmed. Stats paused." : "Data is out of date. Stats paused.")
                     .font(.system(size: 10)).foregroundStyle(.orange)
             }
             HStack {
-                Text(budget == nil ? "" : "Budget uniforme · stime del periodo")
+                Text(budget == nil ? "" : "Uniform budget · period estimates")
                 Spacer(minLength: 3)
-                if let date = store.updatedAt { Text(date.formatted(date: .omitted, time: .shortened)) }
+                if let date = store.updatedAt { Text(date.formatted(Date.FormatStyle(date: .omitted, time: .shortened).locale(meterLocale))) }
                 Button { store.refresh() } label: {
                     Image(systemName: "arrow.clockwise").frame(width: 14, height: 14)
-                }.buttonStyle(.plain).disabled(store.refreshing).help("Aggiorna adesso").accessibilityLabel("Aggiorna adesso")
+                }.buttonStyle(.plain).disabled(store.refreshing).help("Refresh now").accessibilityLabel("Refresh now")
             }.font(.system(size: 9)).foregroundStyle(.secondary)
-        }.padding(14).frame(width: 270)
+        }.padding(14).frame(width: 270).environment(\.locale, meterLocale)
     }
     private func stat(_ label: String, _ value: String, prominent: Bool = false, warning: Bool = false) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 6) {
@@ -323,8 +325,8 @@ final class MeterDelegate: NSObject, NSApplicationDelegate {
         button.title = store.iconOnly ? "" : " " + title
         button.image = ringImage(used: used, uncertain: store.uncertain)
         button.toolTip = entry.map {
-            "Codex · \($0.window.label) · \(percentage(used)) consumato\nReset: \(resetDate($0.window.resetsAt) ?? "non disponibile")\(store.uncertain ? "\nDati da aggiornare" : "")"
-        } ?? "Codex Meter · limiti non disponibili"
+            "Codex · \($0.window.label) · \(percentage(used)) used\nReset: \(resetDate($0.window.resetsAt) ?? "unavailable")\(store.uncertain ? "\nData needs refreshing" : "")"
+        } ?? "Codex Meter · usage limits unavailable"
         button.setAccessibilityLabel(button.toolTip)
         panel.schedulePosition()
         if pendingPanelOpen { attemptPanelOpen() }
@@ -365,13 +367,13 @@ struct CodexMeterApp {
                     let data = try await CodexClient().readLimits()
                     let snapshot = try UsageSnapshot(data: data)
                     guard let entry = snapshot.preferredEntry else {
-                        print("Nessuna finestra di consumo disponibile.")
+                        print("No usage window is available.")
                         exit(2)
                     }
-                    print("OK · \(entry.bucketName) · \(entry.window.label) · \(percentage(entry.window.usedPercent)) consumato · reset \(resetDate(entry.window.resetsAt) ?? "non disponibile")")
+                    print("OK · \(entry.bucketName) · \(entry.window.label) · \(percentage(entry.window.usedPercent)) used · reset \(resetDate(entry.window.resetsAt) ?? "unavailable")")
                     exit(0)
                 } catch {
-                    print("ERRORE · \(error.localizedDescription)")
+                    print("ERROR · \((error as? CodexClientError)?.errorDescription ?? "Could not read usage limits. Try again shortly.")")
                     exit(1)
                 }
             }
