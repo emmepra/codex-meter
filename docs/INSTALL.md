@@ -9,6 +9,10 @@ Download the app from GitHub Releases, or build it from source.
 
 The downloaded app does not require Xcode, a Swift compiler or a source checkout. Building from source additionally requires Git and Xcode Command Line Tools with Swift 5.9 or later.
 
+## Login & privacy
+
+Meter uses the official Codex CLI login; you do not give the project an account, password or API key. It reads quota and reset details through a short-lived local CLI process and has no Meter backend or telemetry. Usage stays in memory and only display preferences are saved; Codex CLI manages its own network access, authentication and logs. See the [README's privacy details](../README.md#login--privacy) and the next section for setup. The CLI account can differ from the Codex desktop account.
+
 ## Install Codex CLI and sign in
 
 If you use Homebrew:
@@ -32,7 +36,7 @@ codex login
 codex login status
 ```
 
-Complete the browser flow using your ChatGPT account. Codex Meter reads the account-wide ChatGPT quota exposed by the CLI; API billing is outside its scope. The CLI account may differ from the account in your desktop app. Authentication is managed by Codex itself; see [OpenAI's authentication documentation](https://learn.chatgpt.com/docs/auth).
+Complete the browser flow using your ChatGPT account. Authentication is managed by Codex itself; see [OpenAI's authentication documentation](https://learn.chatgpt.com/docs/auth).
 
 ## Download and install
 
