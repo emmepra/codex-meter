@@ -9,7 +9,19 @@ A small native macOS menu bar app for checking Codex usage and pacing the quota 
 - **Plan your usage:** daily or hourly allowance, today's budget, average pace and estimated runway.
 - **Lightweight:** AppKit + SwiftUI, no external app dependencies. The Codex reader runs only during refreshes.
 
+![Codex Meter menu bar panel with synthetic demonstration values](assets/codex-meter-demo.png)
+
+The example above uses synthetic values; it does not show an account's actual usage.
+
 This is an independent project, not affiliated with OpenAI.
+
+## Login & privacy
+
+Sign in with the official Codex CLI using ChatGPT before opening Meter. You do not give Codex Meter an account, password or API key. The CLI account may be different from the account signed in to the Codex desktop app; Meter reads whichever account the CLI uses. API billing is outside Meter's scope.
+
+Meter asks the locally launched CLI for quota and reset information through `account/rateLimits/read` over standard input/output, then closes that process. The app has no Meter backend or telemetry code. Usage snapshots stay in memory; only the selected quota window and ring-only display preference are saved. Codex CLI manages its own network access, authentication and any logs it writes.
+
+The displayed percentages are quota points, not token counts. Budget allowance is remaining quota divided by time to reset; runway and reset projections assume the current average pace. These figures are not a history of actual usage or a measure of productivity.
 
 ## Install
 
