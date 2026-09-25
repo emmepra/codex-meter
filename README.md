@@ -39,6 +39,8 @@ Click the menu bar indicator to open the compact panel, anchored directly below 
 
 The **Options** (`…`) menu contains **Ring only**, available quota windows, **Refresh** and **Quit**. Usage refreshes every three minutes and after wake; the arrow refreshes immediately. Automatic launch at login is not enabled.
 
+**Usage limit resets** shows the number of banked resets available to the Codex CLI account, including a confirmed zero. **Unavailable** means the CLI/service did not provide a valid count; **Out of date** marks a retained count after a failed refresh or more than ten minutes without an update. This account-level count is separate from the scheduled **Resets in** countdown and does not imply that a window is eligible for redemption. Redeem resets in Codex; Meter only displays availability.
+
 ### What the statistics mean
 
 | In the app | Meaning |
@@ -60,6 +62,8 @@ Codex Meter starts a short-lived `codex app-server` process and reads `account/r
 Usage snapshots stay in memory. Only display preferences are saved by the app. Authentication remains managed by Codex; no tokens are copied into this project.
 
 See the [official Codex App Server documentation](https://learn.chatgpt.com/docs/app-server#6-rate-limits-chatgpt). Compatibility has been checked with Codex CLI 0.153.0.
+
+The reset-count field has been verified in the generated protocol schema for CLI 0.155.0-alpha.16, with synthetic payload tests. Its earliest supported stable CLI version and live availability across accounts have not been verified. Older CLIs that omit the field continue to show ordinary quota data, with reset availability shown as **Unavailable**.
 
 ## Develop
 

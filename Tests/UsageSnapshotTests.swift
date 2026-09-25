@@ -53,6 +53,22 @@ enum UsageSnapshotTests {
                      #"{"rateLimitsByLimitId":[]}"#, #"{"rateLimits":{"primary":{"usedPercent":"12"}}}"#] {
             rejects(json)
         }
+        for details in ["", #", "credits":null"#, #", "credits":[]"#, #", "credits":[{"id":"synthetic"}]"#] {
+            let snapshot = try read(#"{"result":{"rateLimits":null,"rateLimitResetCredits":{"availableCount":3"# + details + "}}}")
+            check(snapshot.availableResetCount == 3, "Count is authoritative with absent or partial details")
+            check(snapshot.windows.isEmpty, "Reset count does not require a quota window")
+        }
+        let zero = try read(#"{"rateLimitsByLimitId":{},"rateLimitResetCredits":{"availableCount":0}}"#)
+        check(zero.availableResetCount == 0, "Confirmed zero remains known")
+        check(mapped.availableResetCount == nil, "Legacy response has unknown reset availability")
+        for metadata in ["null", "[]", "false", "{}", #"{"availableCount":-1}"#,
+                         #"{"availableCount":1.5}"#, #"{"availableCount":"2"}"#,
+                         #"{"availableCount":true}"#, #"{"availableCount":null}"#,
+                         #"{"availableCount":999999999999999999999999}"#] {
+            let snapshot = try read(#"{"rateLimits":{"primary":{"usedPercent":12}},"rateLimitResetCredits": "# + metadata + "}")
+            check(snapshot.availableResetCount == nil, "Invalid reset metadata stays unavailable")
+            check(snapshot.preferredEntry?.window.usedPercent == 12, "Invalid reset metadata preserves quota")
+        }
         print("UsageSnapshot tests passed")
     }
 }

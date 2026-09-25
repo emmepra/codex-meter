@@ -29,7 +29,7 @@ import Darwin
               case "$task_mode" in
                 error) printf '%s\n' '{"id":2,"error":{"code":-1,"message":"not authenticated"}}' ;;
                 malformed) printf '%s\n' 'unexpected text' ;;
-                *) printf '%s\n' '{"method":"irrelevant","params":{}}' '{"id":2,"result":{"rateLimits":{"primary":{"usedPercent":32}}}}' ;;
+                *) printf '%s\n' '{"method":"irrelevant","params":{}}' '{"id":2,"result":{"rateLimits":{"primary":{"usedPercent":32}},"rateLimitResetCredits":{"availableCount":2}}}' ;;
               esac
               ;;
           esac
@@ -60,6 +60,8 @@ import Darwin
                 let limits = object["rateLimits"] as! [String: Any]
                 let primary = limits["primary"] as! [String: Any]
                 precondition(primary["usedPercent"] as? Int == 32)
+                let resets = object["rateLimitResetCredits"] as! [String: Any]
+                precondition(resets["availableCount"] as? Int == 2, "Transport preserves reset metadata")
             } catch let error as CodexClientError {
                 switch (scenario, error) {
                 case ("error", .loginRequired), ("malformed", .invalidResponse),
