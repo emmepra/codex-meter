@@ -1,8 +1,8 @@
 # Releasing Codex Meter
 
 A release is a reviewed commit on `main` plus a tag matching `VERSION`. Pushing
-that tag runs the same build checks as a pull request, then publishes the app.
-No manual upload or personal token is needed in Actions.
+that tag runs the same build checks as a pull request, then stages a draft. The maintainer signs the update locally before publication.
+The Ed25519 private key stays in the maintainer Mac login Keychain, account `it.emmepra.codex-meter`. It is never committed or uploaded to Actions.
 
 ## Prepare and publish
 
@@ -26,11 +26,11 @@ No manual upload or personal token is needed in Actions.
    git push origin "v$version"
    ```
 
-5. Check the tag's **Build and release** run, then open the
+5. After the tag's **Build and release** run succeeds, run `./scripts/publish-release.sh` from the clean tagged commit on the maintainer Mac. Authorize the Sparkle signing tool in Keychain when prompted. The script downloads and verifies the draft ZIP, checks bundle version, source commit and embedded public key, signs the archive and appcast, verifies both signatures, uploads `appcast.xml`, and publishes the release. Then open the
    [release](https://github.com/emmepra/codex-meter/releases). Confirm the version,
    installation notes, ZIP and checksum, and download the ZIP once to verify it.
 
-Pushing a tag is the publication step. Pushes to `main` and pull requests
+Pushing a tag creates an unpublished draft; local signing and `publish-release.sh` are the publication step. Pushes to `main` and pull requests
 run tests and retain build artifacts for 14 days; they do not create a release.
 
 ## What the workflow does
@@ -42,8 +42,7 @@ it, and verifies the extracted signature and executable permissions.
 
 A separate publish job has `contents: write` through the temporary `GITHUB_TOKEN`.
 It downloads that run's artifacts, checks SHA-256, creates a draft release with
-its assets, and publishes only after uploads succeed. No Codex login, usage data,
-Apple signing credentials or personal access token is supplied to either job.
+its assets, and leaves it as a draft until the local signing step succeeds. No Codex login, usage data, Sparkle private key, Apple signing credentials or personal access token is supplied to either job.
 The interactive UI test stays local because it requires a real desktop session.
 
 The ZIP includes `Codex Meter.app`, the MIT license, installation instructions
@@ -65,3 +64,11 @@ infrastructure or upload failure with unchanged source, rerun the failed tag
 workflow from Actions. A rerun can finish an unpublished draft; it refuses to
 overwrite a published release. If source changes are needed after tagging,
 choose a new version and tag. Do not move a published tag or replace its ZIP.
+
+## Signed in-app updates (0.5.3+)
+
+`scripts/fetch-sparkle.sh` fetches Sparkle 2.10.0 with a pinned SHA-256 and verifies its code signature. The framework and license are embedded during build. The application requires signed feeds and validation before archive extraction; the feed URL is the latest release's `appcast.xml` asset.
+
+The existing project signing key is stored in login Keychain. Do not generate a replacement during routine releases or put a private key in the repository. Keep a secure backup of the Keychain/signing key: these ad hoc signed apps cannot use Developer ID key rotation to recover a lost Ed25519 key. Only the public key is in `Resources/Sparkle-public-key.txt`. `create-appcast.py` refuses to sign with a different public key.
+
+Old versions cannot acquire updater functionality without a one-time manual installation. Updating from 0.5.3 onward uses the Sparkle window. Background availability checks remain quiet and installation is never unattended.

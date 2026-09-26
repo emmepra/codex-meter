@@ -233,7 +233,7 @@ struct MeterPanel: View {
                         .help("Read the public RSS feed at x.noodl3.net every 30 minutes. No X login or API key.")
                     Toggle("Automatically Check for Updates", isOn: $updater.automaticChecks)
                     if let release = updater.availableRelease {
-                        Button("Download \(release.version.text)…") { updater.openRelease() }
+                        Button("Install \(release.version.text)…") { updater.openRelease() }
                     }
                     Button(updater.checking ? "Checking for Updates…" : "Check for Updates…") { updater.check() }
                         .disabled(updater.checking)

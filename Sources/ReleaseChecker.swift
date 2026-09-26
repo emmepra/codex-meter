@@ -29,7 +29,6 @@ final class ReleaseChecker: ObservableObject {
     private var timer: Timer?
     private var task: Task<Void, Never>?
     private var lastAttempt: Date?
-    private var presentResult = false
 
     func start() {
         guard timer == nil else { return }
@@ -51,50 +50,25 @@ final class ReleaseChecker: ObservableObject {
         check(automatically: true)
     }
     func openRelease() {
-        guard let availableRelease else { return }
-        NSWorkspace.shared.open(availableRelease.url)
+        SparkleInstaller.shared.check()
     }
 
     func check(automatically: Bool = false) {
-        if !automatically { presentResult = true }
+        if !automatically { SparkleInstaller.shared.check(); return }
         guard !checking else { return }
         checking = true
         lastAttempt = Date()
         task = Task {
-            defer { checking = false; presentResult = false }
+            defer { checking = false }
             do {
                 let release = try await fetch()
                 try Task.checkCancellation()
                 guard let installed, let installedVersion = ReleaseVersion(installed) else { throw URLError(.cannotParseResponse) }
-                let latest = release.version.text
                 let available = release.version > installedVersion
                 availableRelease = available ? release : nil
                 onChange?()
-                guard presentResult else { return }
-                let alert = NSAlert()
-                alert.icon = NSImage(named: "AppIcon") ?? NSApp.applicationIconImage
-                alert.messageText = available ? "Codex Meter \(latest) is available" : "You’re up to date"
-                alert.informativeText = available
-                    ? "Installed: \(installed). Open the release page to download the update and read the installation instructions."
-                    : "Installed: \(installed). Latest release: \(latest)."
-                alert.addButton(withTitle: available ? "Open Release" : "OK")
-                if available { alert.addButton(withTitle: "Later") }
-                NSApp.activate(ignoringOtherApps: true)
-                if alert.runModal() == .alertFirstButtonReturn && available {
-                    NSWorkspace.shared.open(release.url)
-                }
             } catch {
-                guard !Task.isCancelled, presentResult else { return }
-                let alert = NSAlert()
-                alert.icon = NSImage(named: "AppIcon") ?? NSApp.applicationIconImage
-                alert.messageText = "Could not check for updates"
-                alert.informativeText = "Check your internet connection and try again. You can also view releases on GitHub."
-                alert.addButton(withTitle: "OK")
-                alert.addButton(withTitle: "View Releases")
-                NSApp.activate(ignoringOtherApps: true)
-                if alert.runModal() == .alertSecondButtonReturn {
-                    NSWorkspace.shared.open(Self.repository.appendingPathComponent("releases"))
-                }
+                // Background availability failures stay quiet and retain the last known release.
             }
         }
     }
