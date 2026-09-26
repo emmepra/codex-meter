@@ -91,7 +91,9 @@ The app uses ad hoc signing for local use and is not notarized. Build output is 
 
 Gatekeeper may block the downloaded app because it has no Developer ID signature or notarization. If you trust the copy downloaded from this repository's release, first try opening it, then open **System Settings → Privacy & Security**. Find the blocked-app notice, choose **Open Anyway**, and confirm **Open** in the next prompt. See [Apple's guide to safely opening apps](https://support.apple.com/en-us/102445) for the current instructions.
 
-Codex Meter appears in the menu bar without a Dock icon. Click the small ring and percentage to open the panel. The percentage in the menu bar is **used** quota; **remaining** in the panel is the quota still available. **Resets in** shows the reset countdown.
+Codex Meter appears in the menu bar without a Dock icon. Click the small ring to open the panel; the used percentage is centered inside the ring. **Ring only** hides that number. The larger percentage in the panel is **remaining** quota. **Resets in** shows the reset countdown.
+
+**Usage limit resets** shows banked resets for the Codex CLI account. A fresh count above one is green; one or zero is red. Out-of-date counts remain orange, and **Unavailable** is distinct from zero.
 
 The **Options** (`…`) menu contains:
 
@@ -145,6 +147,14 @@ open "$HOME/Applications/Codex Meter.app"
 Reuse `--destination` if you chose a custom install folder. If Git reports local changes or diverging history, resolve those changes before updating.
 
 Codex CLI updates are separate. Use the package manager you originally chose: `brew upgrade --cask codex` or `npm install -g @openai/codex`. These are the update commands in the [official CLI guide](https://learn.chatgpt.com/docs/codex/cli).
+
+### Compact menu bar and project links
+
+The menu bar shows the used quota as a number inside the ring (the percent sign is omitted for readability). A green dot appears only when fresh data reports at least one available usage-limit reset. No dot is shown for zero, missing, or stale counts. The tooltip includes the exact count. Ring-only mode hides the number, retaining the reset dot.
+
+The panel header shows the OpenAI mark beside Codex Meter. The text-only Codex Meter footer links to the repository. Budget values use the system primary text color for light and dark appearance. The app bundle includes a dedicated meter icon, also used in update dialogs.
+
+**Check for Updates…** in Options checks the latest public GitHub release only when requested. It sends no quota or account data. An available update opens its release page for manual download and installation; the app does not replace itself automatically.
 
 ## Uninstall
 

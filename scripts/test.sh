@@ -18,3 +18,7 @@ xcrun swiftc -swift-version 5 -parse-as-library -module-cache-path .build/module
 xcrun swiftc -swift-version 5 -parse-as-library -module-cache-path .build/module-cache \
   Sources/PanelPlacement.swift Tests/PanelPlacementTests.swift -o .build/placement-tests
 .build/placement-tests
+
+xcrun swiftc -swift-version 5 -parse-as-library -module-cache-path .build/module-cache \
+  Sources/ReleaseInfo.swift Tests/ReleaseInfoTests.swift -o .build/release-info-tests
+.build/release-info-tests

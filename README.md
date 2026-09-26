@@ -4,7 +4,7 @@
 
 A small native macOS menu bar app for checking Codex usage and pacing the quota you have left.
 
-- **At a glance:** a tiny ring and consumed percentage, with an optional ring-only mode.
+- **At a glance:** a menu-bar ring with the consumed percentage inside, plus an optional ring-only mode.
 - **One click:** remaining quota, reset countdown and exact reset time.
 - **Plan your usage:** daily or hourly allowance, today's budget, average pace and estimated runway.
 - **Lightweight:** AppKit + SwiftUI, no external app dependencies. The Codex reader runs only during refreshes.
@@ -35,11 +35,19 @@ The app is **ad hoc signed**, without an Apple Developer ID signature or notariz
 
 ## Use
 
-Click the menu bar indicator to open the compact panel, anchored directly below the menu bar even when its content changes height. The ring and menu bar percentage show **used quota**; the larger percentage in the panel shows **remaining quota**. **Resets in** shows the time until the next reset.
+Click the menu bar indicator to open the compact panel, anchored directly below the menu bar even when its content changes height. The ring shows **used quota**, with its percentage centered inside; **Ring only** hides that number. The larger percentage in the panel shows **remaining quota**. **Resets in** shows the time until the next reset.
 
-The **Options** (`…`) menu contains **Ring only**, available quota windows, **Refresh** and **Quit**. Usage refreshes every three minutes and after wake; the arrow refreshes immediately. Automatic launch at login is not enabled.
+The **Options** (`…`) menu contains **Ring only**, available quota windows, **Refresh**, **Check for Updates…**, **Open Repository** and **Quit**. Usage refreshes every three minutes and after wake; the arrow refreshes immediately. Automatic launch at login is not enabled.
 
-**Usage limit resets** shows the number of banked resets available to the Codex CLI account, including a confirmed zero. **Unavailable** means the CLI/service did not provide a valid count; **Out of date** marks a retained count after a failed refresh or more than ten minutes without an update. This account-level count is separate from the scheduled **Resets in** countdown and does not imply that a window is eligible for redemption. Redeem resets in Codex; Meter only displays availability.
+**Usage limit resets** shows the number of banked resets available to the Codex CLI account, including a confirmed zero. A fresh count above one is green; one or zero is red. Out-of-date counts remain orange, while **Unavailable** stays neutral and does not mean zero. **Out of date** marks a retained count after a failed refresh or more than ten minutes without an update. This account-level count is separate from the scheduled **Resets in** countdown and does not imply that a window is eligible for redemption. Redeem resets in Codex; Meter only displays availability.
+
+### Compact menu bar and project links
+
+The menu bar shows the used quota as a number inside the ring (the percent sign is omitted for readability). A green dot appears only when fresh data reports at least one available usage-limit reset. No dot is shown for zero, missing, or stale counts. The tooltip includes the exact count. Ring-only mode hides the number, retaining the reset dot.
+
+The panel header shows the OpenAI mark beside Codex Meter. The text-only Codex Meter footer links to the repository. Budget values use the system primary text color for light and dark appearance. The app bundle includes a dedicated meter icon, also used in update dialogs.
+
+**Check for Updates…** in Options checks the latest public GitHub release only when requested. It sends no quota or account data. An available update opens its release page for manual download and installation; the app does not replace itself automatically.
 
 ### What the statistics mean
 
