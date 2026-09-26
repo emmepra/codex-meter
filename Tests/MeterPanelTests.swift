@@ -5,6 +5,12 @@ import SwiftUI
 struct MeterPanelTests {
     @MainActor static func main() throws {
         _ = NSApplication.shared
+        var dateCalendar = Calendar(identifier: .gregorian)
+        dateCalendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let dateNow = Date(timeIntervalSince1970: 1_800_000_000)
+        precondition(postDateLabel(dateNow, now: dateNow, calendar: dateCalendar) == "Today")
+        precondition(postDateLabel(dateNow.addingTimeInterval(-86400), now: dateNow, calendar: dateCalendar) == "Yesterday")
+        precondition(postDateLabel(dateNow.addingTimeInterval(-172800), now: dateNow, calendar: dateCalendar) != "Yesterday")
         let store = MeterStore()
         let now = Date(timeIntervalSince1970: 1_800_000_000)
         store.now = now
@@ -47,11 +53,17 @@ struct MeterPanelTests {
         for appearanceName in [NSAppearance.Name.aqua, .darkAqua] {
             let appearance = NSAppearance(named: appearanceName)!
             for resetCount: Int? in [nil, 0, 1, 3] {
+                let updateIcon = StatusIndicator.image(used: 37, uncertain: false, showPercentage: true,
+                    refreshing: false, resetCount: resetCount, appearance: appearance, updateAvailable: true)
+                precondition(updateIcon.size.width == 24)
+                let updateBitmap = NSBitmapImageRep(data: updateIcon.tiffRepresentation!)!
+                try updateBitmap.representation(using: .png, properties: [:])!.write(to: URL(fileURLWithPath:
+                    ".build/update-\(appearanceName.rawValue)-\(resetCount.map(String.init) ?? "unknown").png"))
                 for used: Double? in [nil, 0, 37, 100, .nan, .infinity] {
                     for uncertain in [false, true] {
                         let icon = StatusIndicator.image(used: used, uncertain: uncertain,
                             showPercentage: true, refreshing: false, resetCount: resetCount, appearance: appearance)
-                        precondition(icon.size.width == ((resetCount ?? 0) > 0 ? 28 : 20))
+                        precondition(icon.size.width == ((resetCount ?? 0) > 0 ? 24 : 20))
                         precondition(icon.size.height == 20)
                         precondition(icon.tiffRepresentation != nil)
                     }
@@ -61,6 +73,17 @@ struct MeterPanelTests {
                 let bitmap = NSBitmapImageRep(data: icon.tiffRepresentation!)!
                 try bitmap.representation(using: .png, properties: [:])!.write(to: URL(fileURLWithPath:
                     ".build/status-\(appearanceName.rawValue)-\(resetCount.map(String.init) ?? "unknown").png"))
+            }
+            for update in [false, true] {
+                for unread in [false, true] {
+                    let icon = StatusIndicator.image(used: 37, uncertain: false, showPercentage: true,
+                        refreshing: false, resetCount: 1, appearance: appearance,
+                        updateAvailable: update, unreadAnnouncement: unread)
+                    precondition(icon.size.width == 24)
+                    let bitmap = NSBitmapImageRep(data: icon.tiffRepresentation!)!
+                    try bitmap.representation(using: .png, properties: [:])!.write(to: URL(fileURLWithPath:
+                        ".build/corner-dots-\(appearanceName.rawValue)-\(update)-\(unread).png"))
+                }
             }
             let view = NSHostingView(rootView: MeterPanel(store: store)
                 .environment(\.colorScheme, appearanceName == .darkAqua ? .dark : .light)
