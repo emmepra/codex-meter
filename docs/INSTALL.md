@@ -122,7 +122,7 @@ From a source checkout, after building, you can also run the offline tests:
 
 The tests use synthetic data without login or network access. `--check` makes a real quota read and prints the quota/reset or a short error; it does not open the interface or start a model task.
 
-If the CLI is not found, check `command -v codex`. Codex Meter looks in `~/.local/bin`, `/opt/homebrew/bin`, `/usr/local/bin`, then its inherited `PATH`. Finder-launched apps may have a different `PATH` from Terminal, especially with Node version managers. A Homebrew installation uses one of the explicit locations.
+If the CLI is not found, check `command -v codex`. Codex Meter checks `~/.local/bin`, `/opt/homebrew/bin`, `/usr/local/bin`, its inherited `PATH`, and the CLI bundled with the Codex desktop app. Finder-launched apps may have a different `PATH` from Terminal, especially with Node version managers. Meter skips broken CLI symlinks, which can occur after a desktop app update, and checks the installed desktop app directly. If neither installation is found, install or update the Codex CLI or desktop app, then refresh.
 
 If sign-in is required, run `codex login` and use **Refresh** in Codex Meter. If an error persists, check that the CLI works and that your network connection is available. Unknown quota values remain unavailable; an old value after a failed refresh is marked as stale.
 
