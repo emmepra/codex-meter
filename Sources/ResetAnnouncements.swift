@@ -79,7 +79,26 @@ struct ResetFeed {
 
 @MainActor
 final class ResetAnnouncements: ObservableObject {
-    @Published private(set) var latest: ResetAnnouncement? { didSet { onChange?() } }
+    @Published private(set) var latest: ResetAnnouncement? {
+        didSet {
+            if latest?.id != oldValue?.id { resetObservation = nil }
+            onChange?()
+        }
+    }
+    private var resetObservation: (postID: String, count: Int, date: Date)?
+
+    /// A later increase only acknowledges the notice; it does not establish causation.
+    /// Missing data, failed reads, or gaps longer than the quota freshness window break the comparison.
+    func observeResetCount(_ count: Int?, at date: Date = Date()) {
+        guard hasUnread, let post = latest, let count, count >= 0, date >= post.date else {
+            resetObservation = nil
+            return
+        }
+        defer { resetObservation = (post.id, count, date) }
+        guard let previous = resetObservation, previous.postID == post.id,
+              date > previous.date, date.timeIntervalSince(previous.date) <= 600 else { return }
+        if count > previous.count { markRead() }
+    }
     @Published private(set) var lastReadID: String?
     var onChange: (() -> Void)?
     private let preferences: UserDefaults

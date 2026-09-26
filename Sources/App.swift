@@ -102,10 +102,13 @@ final class MeterStore: ObservableObject {
                 let data = try await client.readLimits()
                 guard !Task.isCancelled else { return }
                 snapshot = try UsageSnapshot(data: data)
-                updatedAt = Date()
+                let receivedAt = Date()
+                updatedAt = receivedAt
                 error = nil
+                announcements.observeResetCount(snapshot?.availableResetCount, at: receivedAt)
             } catch {
                 guard !Task.isCancelled else { return }
+                announcements.observeResetCount(nil)
                 self.error = (error as? CodexClientError)?.errorDescription ?? "Could not read usage limits. Try again shortly."
             }
             now = Date()
@@ -171,7 +174,9 @@ struct MeterPanel: View {
                 Image(nsImage: Bundle.main.url(forResource: "OpenAI", withExtension: "png").flatMap { NSImage(contentsOf: $0) } ?? NSImage(size: NSSize(width: 16, height: 16))).renderingMode(.template)
                     .resizable().scaledToFit().frame(width: 16, height: 16)
                     .accessibilityLabel("OpenAI")
-                Text("Codex Meter").font(.system(size: 11, weight: .semibold))
+                Link(destination: ReleaseChecker.repository) {
+                    Text("Codex Meter").font(.system(size: 11, weight: .semibold))
+                }.buttonStyle(.plain).help("Codex Meter on GitHub")
                 if let entry = store.entry {
                     Text(entry.bucketId == "codex" ? entry.window.label : entry.bucketName)
                         .font(.system(size: 10)).foregroundStyle(.secondary).lineLimit(1)
@@ -285,16 +290,25 @@ struct MeterPanel: View {
             if announcements.enabled {
                 if let post = announcements.latest,
                    store.now.timeIntervalSince(post.date) <= ResetFeed.maximumAge {
-                    Button { announcements.openLatest() } label: {
-                        HStack(spacing: 4) {
-                            if announcements.hasUnread { Circle().fill(Color.orange).frame(width: 4, height: 4) }
-                            Text("Tibo · “reset”")
-                            if announcements.unavailable { Text("· cached").foregroundStyle(.secondary) }
-                            Spacer(minLength: 2)
-                            Text(post.date.formatted(.dateTime.locale(meterLocale).day().month(.abbreviated)))
-                            Image(systemName: "arrow.up.right").font(.system(size: 8))
-                        }.font(.system(size: 10)).foregroundStyle(.primary)
-                    }.buttonStyle(.plain).help("\(post.text.prefix(500))\nVia x.noodl3.net · Keyword match, not confirmation of an account reset.")
+                    HStack(spacing: 6) {
+                        Button { announcements.openLatest() } label: {
+                            HStack(spacing: 4) {
+                                if announcements.hasUnread { Circle().fill(Color.orange).frame(width: 4, height: 4) }
+                                Text("Tibo · “reset”")
+                                if announcements.unavailable { Text("· cached").foregroundStyle(.secondary) }
+                                Spacer(minLength: 2)
+                                Text(post.date.formatted(.dateTime.locale(meterLocale).day().month(.abbreviated)))
+                                Image(systemName: "arrow.up.right").font(.system(size: 8))
+                            }.font(.system(size: 10)).foregroundStyle(.primary)
+                        }.buttonStyle(.plain).help("\(post.text.prefix(500))\nVia x.noodl3.net · Keyword match, not confirmation of an account reset.")
+                        if announcements.hasUnread {
+                            Button { announcements.markRead() } label: {
+                                Image(systemName: "checkmark").font(.system(size: 9, weight: .medium))
+                                    .frame(width: 14, height: 14).contentShape(Rectangle())
+                            }.buttonStyle(.plain).foregroundStyle(.secondary)
+                                .help("Mark as seen").accessibilityLabel("Mark Tibo post as seen")
+                        }
+                    }
                 } else if announcements.unavailable {
                     Text("Tibo posts unavailable").font(.system(size: 10)).foregroundStyle(.secondary)
                         .help("The public RSS source x.noodl3.net could not be refreshed. Quota data is unaffected.")
@@ -309,11 +323,6 @@ struct MeterPanel: View {
                     .font(.system(size: 10)).foregroundStyle(.orange)
             }
             HStack {
-                Link(destination: ReleaseChecker.repository) {
-                    HStack(spacing: 5) {
-                        Text("Codex Meter").font(.system(size: 11, weight: .medium))
-                    }.foregroundStyle(.primary)
-                }.help("Codex Meter on GitHub")
                 Spacer(minLength: 3)
                 if let date = store.updatedAt { Text(date.formatted(Date.FormatStyle(date: .omitted, time: .shortened).locale(meterLocale))) }
                 Button { store.refresh() } label: {
