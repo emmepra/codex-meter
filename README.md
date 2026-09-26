@@ -7,6 +7,8 @@ A small native macOS menu bar app for checking Codex usage and pacing the quota 
 - **At a glance:** a menu-bar ring with the consumed percentage inside, plus an optional ring-only mode.
 - **One click:** remaining quota, reset countdown and exact reset time.
 - **Plan your usage:** daily or hourly allowance, today's budget, average pace and estimated runway.
+- **Reset announcements:** a compact link to Tibo’s latest post mentioning **reset**, with an unread indicator.
+- **Stay up to date:** optional launch at login and quiet checks for new app releases.
 - **Lightweight:** AppKit + SwiftUI, no external app dependencies. The Codex reader runs only during refreshes.
 
 ![Codex Meter menu bar panel with synthetic demonstration values](assets/codex-meter-demo.png)
@@ -33,6 +35,12 @@ You need an **Apple Silicon Mac**, macOS **13 or later**, and the **Codex CLI si
 
 The app is **ad hoc signed**, without an Apple Developer ID signature or notarization, so Gatekeeper may block the first launch. The [installation guide](docs/INSTALL.md#first-launch) explains Apple's **Open Anyway** procedure, along with [CLI setup](docs/INSTALL.md#install-codex-cli-and-sign-in), [building from source](docs/INSTALL.md#build-from-source-alternative), updates and troubleshooting.
 
+### Updating an existing installation
+
+Choose **Options → Check for Updates…** to open the latest release when a newer version is available. Download the ZIP, quit Meter, and replace the copy in Applications. Updates are installed manually.
+
+From **0.5.0**, automatic checks can also light the blue menu-bar dot. It appears only for a **newer** version, so a development preview with the same version as the release will not show it. Older versions without an update command can use the [latest release page](https://github.com/emmepra/codex-meter/releases/latest).
+
 ## Use
 
 Click the menu bar indicator to open the compact panel, anchored directly below the menu bar even when its content changes height. The ring shows **used quota**, with its percentage centered inside; **Ring only** hides that number. The larger percentage in the panel shows **remaining quota**. **Resets in** shows the time until the next reset.
@@ -53,7 +61,17 @@ The panel header shows the OpenAI mark beside Codex Meter. The Codex Meter title
 
 **Check Tibo’s Reset Posts** in Options is on by default. Meter reads the public RSS feed at `https://x.noodl3.net/thsottiaux/rss` at launch and every 30 minutes, with a due check after wake. This is a third-party Nitter instance, not an official X/OpenAI service; it may be unavailable, delayed or incomplete. The source sees ordinary connection metadata such as the IP address, but Meter sends no account data, quota, cookies or credentials. No X API key, Python runtime or new library is required.
 
-The panel shows a single compact link for the newest matching post in the last seven days. It matches the standalone word **reset**, case-insensitively, in the post title/text after removing URLs; it checks the author and post link and ignores other authors and reposts. A short excerpt of up to 72 characters appears below the author, with **reset** in bold and ellipses where context is omitted. It preserves whole words and wraps to at most two lines. Recent posts show **Today** or **Yesterday**. Hover for the full date, time and excerpt; click to open the original post on X. A keyword match does not confirm a reset on your account. Post contents stay in memory; only the last-read post ID and the feature preference are saved. Opening the post, using the small **Mark as seen** checkmark on its row, or choosing **Mark Tibo Post as Read** clears the amber dot across restarts. A newer matching post lights it again. The dot is also acknowledged if two fresh successful quota reads, observed after detecting the post and at most ten minutes apart, show an increase in available resets. The link stays visible. This is a dismissal heuristic, not confirmation that the post caused that reset. An initial positive count, missing/failed reads or a long gap do not establish a connection; the in-memory comparison restarts. Cached matches are marked if a refresh fails, and **Tibo posts unavailable** distinguishes a failed source from no recent match. Disable the option to stop fetching and hide the row.
+The panel shows **𝕏 Tibo** and the date of the newest matching post in the last seven days. It matches the standalone word **reset**, case-insensitively, after removing URLs, and checks the author and post link. Posts from other authors and reposts are ignored. A keyword match does **not** confirm a reset on your account.
+
+**In development — not included in 0.5.0:** a short excerpt appears below the author, with **reset** in bold and ellipses where context is omitted. It keeps whole words, uses up to 72 characters and wraps to at most two lines. For example, using synthetic text:
+
+> … we will **reset** usage limits tomorrow …
+
+- **Read:** recent dates show **Today** or **Yesterday**. Hover for the full date, time and excerpt; click to open the original post on X.
+- **Dismiss:** opening the post, clicking its **Mark as seen** checkmark or choosing **Mark Tibo Post as Read** clears the amber dot across restarts. A newer matching post lights it again.
+- **Reset-count change:** an increase between two fresh successful quota reads after detecting the post also clears the dot; the link stays visible. Reads must be at most ten minutes apart. This is a dismissal heuristic, not proof that the post caused a reset. An initial positive count, missing/failed reads or a long gap do not establish a connection.
+- **Source unavailable:** retained matches are marked **cached** after a failed refresh. **Tibo posts unavailable** distinguishes a failed source without a cached match from no recent match.
+- **Control and storage:** disable **Check Tibo’s Reset Posts** to stop fetching and hide the row. Post contents and quota comparisons stay in memory; only the last-read post ID and the feature preference are saved.
 
 ### What the statistics mean
 
