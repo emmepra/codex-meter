@@ -8,6 +8,13 @@ func percentage(_ value: Double?) -> String {
     return "\(Int(value.rounded()))%"
 }
 
+func postDateLabel(_ date: Date, now: Date = Date(), calendar: Calendar = .current) -> String {
+    if calendar.isDate(date, inSameDayAs: now) { return "Today" }
+    if let yesterday = calendar.date(byAdding: .day, value: -1, to: now),
+       calendar.isDate(date, inSameDayAs: yesterday) { return "Yesterday" }
+    return date.formatted(.dateTime.locale(meterLocale).day().month(.abbreviated))
+}
+
 func remainingTime(_ reset: Double?, now: Date = Date()) -> String {
     guard let reset, reset.isFinite else { return "Reset time unavailable" }
     let seconds = reset - now.timeIntervalSince1970
@@ -182,7 +189,14 @@ struct MeterPanel: View {
                         .font(.system(size: 10)).foregroundStyle(.secondary).lineLimit(1)
                 }
                 Spacer()
-                if store.refreshing { ProgressView().controlSize(.mini) }
+                Button { store.refresh() } label: {
+                    ZStack {
+                        if store.refreshing { ProgressView().controlSize(.mini) }
+                        else { Image(systemName: "arrow.clockwise").font(.system(size: 10)) }
+                    }.frame(width: 16, height: 16)
+                }.buttonStyle(.plain).disabled(store.refreshing)
+                    .help(store.updatedAt.map { "Last updated: " + $0.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened).locale(meterLocale)) + "\nRefresh now" } ?? "Not updated yet. Refresh now")
+                    .accessibilityLabel(store.refreshing ? "Refreshing" : "Refresh now")
                 Menu {
                     Toggle("Ring only", isOn: $store.iconOnly)
                     Toggle("Launch at Login", isOn: Binding(get: { login.enabled }, set: { login.setEnabled($0) }))
@@ -297,10 +311,10 @@ struct MeterPanel: View {
                                 Text("Tibo · “reset”")
                                 if announcements.unavailable { Text("· cached").foregroundStyle(.secondary) }
                                 Spacer(minLength: 2)
-                                Text(post.date.formatted(.dateTime.locale(meterLocale).day().month(.abbreviated)))
+                                Text(postDateLabel(post.date, now: store.now))
                                 Image(systemName: "arrow.up.right").font(.system(size: 8))
                             }.font(.system(size: 10)).foregroundStyle(.primary)
-                        }.buttonStyle(.plain).help("\(post.text.prefix(500))\nVia x.noodl3.net · Keyword match, not confirmation of an account reset.")
+                        }.buttonStyle(.plain).help("\(post.date.formatted(Date.FormatStyle(date: .complete, time: .shortened).locale(meterLocale)))\n\(post.text.prefix(500))\nVia x.noodl3.net · Keyword match, not confirmation of an account reset.")
                         if announcements.hasUnread {
                             Button { announcements.markRead() } label: {
                                 Image(systemName: "checkmark").font(.system(size: 9, weight: .medium))
@@ -322,13 +336,6 @@ struct MeterPanel: View {
                 Text(store.resetPending ? "Reset unconfirmed. Stats paused." : "Data is out of date. Stats paused.")
                     .font(.system(size: 10)).foregroundStyle(.orange)
             }
-            HStack {
-                Spacer(minLength: 3)
-                if let date = store.updatedAt { Text(date.formatted(Date.FormatStyle(date: .omitted, time: .shortened).locale(meterLocale))) }
-                Button { store.refresh() } label: {
-                    Image(systemName: "arrow.clockwise").frame(width: 14, height: 14)
-                }.buttonStyle(.plain).disabled(store.refreshing).help("Refresh now").accessibilityLabel("Refresh now")
-            }.font(.system(size: 9)).foregroundStyle(.secondary)
         }.padding(14).frame(width: 270).environment(\.locale, meterLocale)
     }
     private func stat(_ label: String, _ value: String, prominent: Bool = false, warning: Bool = false,

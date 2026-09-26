@@ -5,6 +5,12 @@ import SwiftUI
 struct MeterPanelTests {
     @MainActor static func main() throws {
         _ = NSApplication.shared
+        var dateCalendar = Calendar(identifier: .gregorian)
+        dateCalendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let dateNow = Date(timeIntervalSince1970: 1_800_000_000)
+        precondition(postDateLabel(dateNow, now: dateNow, calendar: dateCalendar) == "Today")
+        precondition(postDateLabel(dateNow.addingTimeInterval(-86400), now: dateNow, calendar: dateCalendar) == "Yesterday")
+        precondition(postDateLabel(dateNow.addingTimeInterval(-172800), now: dateNow, calendar: dateCalendar) != "Yesterday")
         let store = MeterStore()
         let now = Date(timeIntervalSince1970: 1_800_000_000)
         store.now = now
