@@ -1,7 +1,30 @@
 import Foundation
 
 @main struct ReleaseInfoTests {
-    static func main() throws {
+    static func main() async throws {
+        final class Counter { var reads = 0 }
+        struct Bytes: AsyncSequence, AsyncIteratorProtocol {
+            typealias Element = UInt8
+            var remaining: Int
+            let counter: Counter
+            func makeAsyncIterator() -> Self { self }
+            mutating func next() async -> UInt8? {
+                guard remaining > 0 else { return nil }
+                remaining -= 1
+                counter.reads += 1
+                return 32
+            }
+        }
+        let exact = try await ReleaseInfo.readBody(Bytes(remaining: ReleaseInfo.maximumBytes, counter: Counter()))
+        precondition(exact.count == ReleaseInfo.maximumBytes)
+        let counter = Counter()
+        do {
+            _ = try await ReleaseInfo.readBody(Bytes(remaining: ReleaseInfo.maximumBytes + 100, counter: counter))
+            preconditionFailure("Oversized streams must fail before draining the response")
+        } catch let error as URLError {
+            precondition(error.code == .dataLengthExceedsMaximum)
+            precondition(counter.reads == ReleaseInfo.maximumBytes + 1)
+        }
         for invalid in ["", "1", "1.2", "1.2.3.4", "1..3", "1.2.3.", "01.2.3", "-1.2.3", "+1.2.3", "1.2.3-beta", "١.2.3", "1.2/../3", "99999999999999999999.2.3"] {
             precondition(ReleaseVersion(invalid) == nil, invalid)
         }

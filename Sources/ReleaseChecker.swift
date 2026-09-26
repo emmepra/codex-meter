@@ -108,7 +108,11 @@ final class ReleaseChecker: ObservableObject {
         configuration.timeoutIntervalForResource = 25
         let session = URLSession(configuration: configuration, delegate: ReleaseRedirectPolicy(), delegateQueue: nil)
         defer { session.invalidateAndCancel() }
-        let (data, response) = try await session.data(for: request)
+        let (bytes, response) = try await session.bytes(for: request)
+        guard let response = response as? HTTPURLResponse, response.statusCode == 200,
+              response.url == ReleaseInfo.endpoint,
+              response.expectedContentLength <= ReleaseInfo.maximumBytes else { throw URLError(.badServerResponse) }
+        let data = try await ReleaseInfo.readBody(bytes)
         try Task.checkCancellation()
         return try ReleaseInfo(data: data, response: response)
     }
