@@ -126,6 +126,8 @@ If the CLI is not found, check `command -v codex`. Codex Meter looks in `~/.loca
 
 If sign-in is required, run `codex login` and use **Refresh** in Codex Meter. If an error persists, check that the CLI works and that your network connection is available. Unknown quota values remain unavailable; an old value after a failed refresh is marked as stale.
 
+If **Usage limit resets** shows **Unavailable**, the CLI/service did not return a valid reset count. This does not mean you have zero resets. The field is confirmed in CLI 0.155.0-alpha.16's generated schema; the minimum stable CLI version and account-specific availability are not yet verified. Ordinary quota display still works when this optional field is absent. **Out of date** means the last known count needs a successful refresh. Meter cannot redeem resets.
+
 ## Update
 
 Quit Codex Meter using **Options → Quit** before replacing the app.

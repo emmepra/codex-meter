@@ -9,3 +9,8 @@ xcrun swiftc -swift-version 5 -parse-as-library -target arm64-apple-macosx13.0 \
   Sources/PanelPlacement.swift Sources/StatusPanel.swift Tests/StatusPanelTests.swift \
   -o .build/status-panel-tests
 .build/status-panel-tests
+
+xcrun swiftc -swift-version 5 -parse-as-library -D METER_TESTS -target arm64-apple-macosx13.0 \
+  -module-cache-path .build/module-cache \
+  Sources/*.swift Tests/MeterPanelTests.swift -o .build/meter-panel-tests
+.build/meter-panel-tests

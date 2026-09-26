@@ -52,9 +52,11 @@ struct UsageEntry: Identifiable {
 
 struct UsageSnapshot {
     let buckets: [RateLimitBucket]
+    let availableResetCount: Int?
 
     init(data: Data) throws {
         let response = try JSONDecoder().decode(Response.self, from: data)
+        availableResetCount = response.payload.availableResetCount
         if let map = response.payload.map {
             buckets = map.keys.sorted {
                 if $0 == "codex" { return $1 != "codex" }
@@ -105,7 +107,9 @@ struct UsageSnapshot {
     private struct Payload: Decodable {
         let map: [String: RateLimitBucket]?
         let legacy: RateLimitBucket?
-        private enum CodingKeys: String, CodingKey { case rateLimitsByLimitId, rateLimits }
+        let availableResetCount: Int?
+        private struct ResetCredits: Decodable { let availableCount: Int }
+        private enum CodingKeys: String, CodingKey { case rateLimitsByLimitId, rateLimits, rateLimitResetCredits }
         init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
             guard container.contains(.rateLimitsByLimitId) || container.contains(.rateLimits) else {
@@ -115,6 +119,10 @@ struct UsageSnapshot {
             map = try container.decodeIfPresent([String: RateLimitBucket].self, forKey: .rateLimitsByLimitId)
             // The map, including an empty map, is authoritative when supplied.
             legacy = map == nil ? try container.decodeIfPresent(RateLimitBucket.self, forKey: .rateLimits) : nil
+            // Optional reset metadata must never invalidate otherwise usable quota data.
+            // Detail rows can be capped; only the server's count is authoritative.
+            let resets = try? container.decode(ResetCredits.self, forKey: .rateLimitResetCredits)
+            availableResetCount = resets.flatMap { $0.availableCount >= 0 ? $0.availableCount : nil }
         }
     }
 }

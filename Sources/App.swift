@@ -62,6 +62,10 @@ final class MeterStore: ObservableObject {
     var stale: Bool { error != nil || (updatedAt.map { now.timeIntervalSince($0) > 600 } ?? false) }
     var resetPending: Bool { entry?.window.resetsAt.map { $0 <= now.timeIntervalSince1970 } ?? false }
     var uncertain: Bool { stale || resetPending }
+    var resetAvailabilityText: String {
+        guard let count = snapshot?.availableResetCount else { return "Unavailable" }
+        return stale ? "\(count) · Out of date" : "\(count) available"
+    }
 
     func start() {
         refresh()
@@ -193,8 +197,8 @@ struct MeterPanel: View {
                         if let date = resetDate(entry.window.resetsAt) { Text(date).foregroundStyle(.secondary) }
                     }.font(.system(size: 10)).lineLimit(1)
                 }
-                Divider()
                 if let budget {
+                    Divider()
                     VStack(spacing: 7) {
                         stat(daily ? "Daily budget" : "Hourly budget",
                              quotaAmount(daily ? budget.budgetPerDay : budget.budgetPerHour),
@@ -223,6 +227,7 @@ struct MeterPanel: View {
                         }
                     }
                 } else if !store.uncertain {
+                    Divider()
                     Text("Stats require known quota and reset time.")
                         .font(.system(size: 10)).foregroundStyle(.secondary)
                 }
@@ -230,6 +235,11 @@ struct MeterPanel: View {
                 Text(store.refreshing ? "Reading usage limits…" : "Usage limits unavailable")
                     .font(.system(size: 12)).foregroundStyle(.secondary).padding(.vertical, 8)
             }
+
+            Divider()
+            stat("Usage limit resets", store.resetAvailabilityText,
+                 warning: store.stale && store.snapshot?.availableResetCount != nil)
+                .help("Banked resets for the Codex CLI account. Availability does not mean a quota window is eligible. Redeem resets in Codex.")
 
             if let error = store.error {
                 Label(error, systemImage: "exclamationmark.triangle")
@@ -358,6 +368,7 @@ final class MeterDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
+#if !METER_TESTS
 @main
 struct CodexMeterApp {
     static func main() {
@@ -388,3 +399,4 @@ struct CodexMeterApp {
         }
     }
 }
+#endif
