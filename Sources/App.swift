@@ -233,7 +233,7 @@ struct MeterPanel: View {
                         .help("Read the public RSS feed at x.noodl3.net every 30 minutes. No X login or API key.")
                     Toggle("Automatically Check for Updates", isOn: $updater.automaticChecks)
                     if let release = updater.availableRelease {
-                        Button("Update to \(release.version.text)…") { updater.openRelease() }
+                        Button("Download \(release.version.text)…") { updater.openRelease() }
                     }
                     Button(updater.checking ? "Checking for Updates…" : "Check for Updates…") { updater.check() }
                         .disabled(updater.checking)
@@ -442,7 +442,6 @@ final class MeterDelegate: NSObject, NSApplicationDelegate {
                                  showPercentage: !store.iconOnly, refreshing: store.refreshing,
                                  resetCount: store.statusResetCount,
                                  appearance: button.effectiveAppearance,
-                                 updateAvailable: store.updater.availableRelease != nil,
                                  unreadAnnouncement: store.announcements.hasUnread)
         button.toolTip = entry.map {
             "Codex · \($0.window.label) · \(percentage(used)) used\nReset: \(resetDate($0.window.resetsAt) ?? "unavailable")\(store.uncertain ? "\nData needs refreshing" : "")"

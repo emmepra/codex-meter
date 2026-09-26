@@ -1,9 +1,9 @@
 import AppKit
 
 struct StatusIndicator {
-    static func image(used: Double?, uncertain: Bool, showPercentage: Bool, refreshing: Bool, resetCount: Int?, appearance: NSAppearance, updateAvailable: Bool = false, unreadAnnouncement: Bool = false) -> NSImage {
+    static func image(used: Double?, uncertain: Bool, showPercentage: Bool, refreshing: Bool, resetCount: Int?, appearance: NSAppearance, unreadAnnouncement: Bool = false) -> NSImage {
         let used = used.flatMap { $0.isFinite ? min(100, max(0, $0)) : nil }
-        let hasDots = updateAvailable || unreadAnnouncement || (resetCount ?? 0) > 0
+        let hasDots = unreadAnnouncement || (resetCount ?? 0) > 0
         let width: CGFloat = hasDots ? 24 : 20
         let centerX = width / 2
         let image = NSImage(size: NSSize(width: width, height: 20), flipped: false) { _ in
@@ -42,7 +42,6 @@ struct StatusIndicator {
                     NSBezierPath(ovalIn: NSRect(x: x, y: y, width: 3.5, height: 3.5)).fill()
                 }
                 if (resetCount ?? 0) > 0 { dot(.systemGreen, x: 0, y: 16.5) }
-                if updateAvailable { dot(.systemBlue, x: 20.5, y: 16.5) }
                 if unreadAnnouncement { dot(.systemOrange, x: 20.5, y: 0) }
             }
             return true

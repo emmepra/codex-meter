@@ -41,7 +41,7 @@ The app is **ad hoc signed**, without an Apple Developer ID signature or notariz
 
 Choose **Options → Check for Updates…** to open the latest release when a newer version is available. Download the ZIP, quit Meter, and replace the copy in Applications. Updates are installed manually.
 
-From **0.5.0**, automatic checks can also light the blue menu-bar dot. It appears only for a **newer** version, so a development preview with the same version as the release will not show it. Older versions without an update command can use the [latest release page](https://github.com/emmepra/codex-meter/releases/latest).
+Automatic checks show **Download <version>…** in Options when a newer release is available. The menu-bar dots are reserved for reset credits and unread Tibo posts. Older versions without an update command can use the [latest release page](https://github.com/emmepra/codex-meter/releases/latest).
 
 ## Use
 
@@ -53,7 +53,7 @@ The **Options** (`…`) menu contains **Ring only**, available quota windows, **
 
 ### Compact menu bar and project links
 
-The menu bar shows the used quota as a number inside the ring (the percent sign is omitted for readability). Three independent corner dots surround the ring: green at top left for fresh positive reset availability, blue at top right for an available app update, and amber at bottom right for an unread Tibo post mentioning **reset**. They can appear together. Missing, zero or stale reset counts never produce a green dot. Options shows **Update to <version>…** when a release is available. The tooltip includes the exact count. Ring-only mode hides the number, retaining any update or reset indicator.
+The menu bar shows the used quota as a number inside the ring (the percent sign is omitted for readability). Two independent corner dots surround the ring: green at top left for fresh positive reset availability, and amber at bottom right for an unread Tibo post mentioning **reset**. App updates do not light a dot. They can appear together. Missing, zero or stale reset counts never produce a green dot. Options shows **Download <version>…** when a release is available. The tooltip includes the exact count. Ring-only mode hides the number, retaining the reset and unread-post indicators.
 
 The panel header shows the OpenAI mark beside Codex Meter. The Codex Meter title links to the repository; the refresh button is beside Options in the header, replacing itself with a spinner while loading. Hover for the last successful refresh date and time; there is no footer row. Budget values use the system primary text color for light and dark appearance. The app bundle includes a dedicated meter icon, also used in update dialogs.
 
