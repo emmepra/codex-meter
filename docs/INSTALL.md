@@ -11,7 +11,7 @@ The downloaded app does not require Xcode, a Swift compiler or a source checkout
 
 ## Login & privacy
 
-Meter uses the official Codex CLI login; you do not give the project an account, password or API key. It reads quota and reset details through a short-lived local CLI process and has no Meter backend or telemetry. Usage stays in memory and only display and automatic-update preferences are saved; Codex CLI manages its own network access, authentication and logs. See the [README's privacy details](../README.md#login--privacy) and the next section for setup. The CLI account can differ from the Codex desktop account.
+Meter uses the official Codex CLI login; you do not give the project an account, password or API key. It reads quota and reset details through a short-lived local CLI process and has no Meter backend or telemetry. Usage stays in memory and only display, automatic-update and reset-post preferences plus the last-read post ID are saved; Codex CLI manages its own network access, authentication and logs. See the [README's privacy details](../README.md#login--privacy) and the next section for setup. The CLI account can differ from the Codex desktop account.
 
 ## Install Codex CLI and sign in
 
@@ -112,6 +112,12 @@ The **Options** (`…`) menu contains:
 
 Other available quota windows appear in the same menu. Read the [README](../README.md) for the budget calculations and their limits.
 
+### Reset posts from Tibo
+
+**Check Tibo’s Reset Posts** in Options is on by default. Meter reads the public RSS feed at `https://x.noodl3.net/thsottiaux/rss` at launch and every 30 minutes, with a due check after wake. This is a third-party Nitter instance, not an official X/OpenAI service; it may be unavailable, delayed or incomplete. The source sees ordinary connection metadata such as the IP address, but Meter sends no account data, quota, cookies or credentials. No X API key, Python runtime or new library is required.
+
+The panel shows a single compact link for the newest matching post in the last seven days. It matches the standalone word **reset**, case-insensitively, in the post title/text after removing URLs; it checks the author and post link and ignores other authors and reposts. Hover for an excerpt and click to open the original post on X. A keyword match does not confirm a reset on your account. Post contents stay in memory; only the last-read post ID and the feature preference are saved. Opening the post, or choosing **Mark Tibo Post as Read**, clears the amber dot across restarts. A newer matching post lights it again. Cached matches are marked if a refresh fails, and **Tibo posts unavailable** distinguishes a failed source from no recent match. Disable the option to stop fetching and hide the row.
+
 ## Check a problem
 
 To check the installed app's connection without opening its interface, run its executable with `--check`:
@@ -157,7 +163,7 @@ Codex CLI updates are separate. Use the package manager you originally chose: `b
 
 ### Compact menu bar and project links
 
-The menu bar shows the used quota as a number inside the ring (the percent sign is omitted for readability). A blue dot takes priority when an update is available; Options shows **Update to <version>…** with a link to the release. Otherwise, a green dot appears only when fresh data reports at least one available usage-limit reset. When no update is known, the dot is hidden for zero, missing, or stale reset counts. The tooltip includes the exact count. Ring-only mode hides the number, retaining any update or reset indicator.
+The menu bar shows the used quota as a number inside the ring (the percent sign is omitted for readability). Three independent corner dots surround the ring: green at top left for fresh positive reset availability, blue at top right for an available app update, and amber at bottom right for an unread Tibo post mentioning **reset**. They can appear together. Missing, zero or stale reset counts never produce a green dot. Options shows **Update to <version>…** when a release is available. The tooltip includes the exact count. Ring-only mode hides the number, retaining any update or reset indicator.
 
 The panel header shows the OpenAI mark beside Codex Meter. The text-only Codex Meter footer links to the repository. Budget values use the system primary text color for light and dark appearance. The app bundle includes a dedicated meter icon, also used in update dialogs.
 

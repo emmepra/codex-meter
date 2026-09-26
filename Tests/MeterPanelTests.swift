@@ -49,7 +49,7 @@ struct MeterPanelTests {
             for resetCount: Int? in [nil, 0, 1, 3] {
                 let updateIcon = StatusIndicator.image(used: 37, uncertain: false, showPercentage: true,
                     refreshing: false, resetCount: resetCount, appearance: appearance, updateAvailable: true)
-                precondition(updateIcon.size.width == 28)
+                precondition(updateIcon.size.width == 24)
                 let updateBitmap = NSBitmapImageRep(data: updateIcon.tiffRepresentation!)!
                 try updateBitmap.representation(using: .png, properties: [:])!.write(to: URL(fileURLWithPath:
                     ".build/update-\(appearanceName.rawValue)-\(resetCount.map(String.init) ?? "unknown").png"))
@@ -57,7 +57,7 @@ struct MeterPanelTests {
                     for uncertain in [false, true] {
                         let icon = StatusIndicator.image(used: used, uncertain: uncertain,
                             showPercentage: true, refreshing: false, resetCount: resetCount, appearance: appearance)
-                        precondition(icon.size.width == ((resetCount ?? 0) > 0 ? 28 : 20))
+                        precondition(icon.size.width == ((resetCount ?? 0) > 0 ? 24 : 20))
                         precondition(icon.size.height == 20)
                         precondition(icon.tiffRepresentation != nil)
                     }
@@ -67,6 +67,17 @@ struct MeterPanelTests {
                 let bitmap = NSBitmapImageRep(data: icon.tiffRepresentation!)!
                 try bitmap.representation(using: .png, properties: [:])!.write(to: URL(fileURLWithPath:
                     ".build/status-\(appearanceName.rawValue)-\(resetCount.map(String.init) ?? "unknown").png"))
+            }
+            for update in [false, true] {
+                for unread in [false, true] {
+                    let icon = StatusIndicator.image(used: 37, uncertain: false, showPercentage: true,
+                        refreshing: false, resetCount: 1, appearance: appearance,
+                        updateAvailable: update, unreadAnnouncement: unread)
+                    precondition(icon.size.width == 24)
+                    let bitmap = NSBitmapImageRep(data: icon.tiffRepresentation!)!
+                    try bitmap.representation(using: .png, properties: [:])!.write(to: URL(fileURLWithPath:
+                        ".build/corner-dots-\(appearanceName.rawValue)-\(update)-\(unread).png"))
+                }
             }
             let view = NSHostingView(rootView: MeterPanel(store: store)
                 .environment(\.colorScheme, appearanceName == .darkAqua ? .dark : .light)

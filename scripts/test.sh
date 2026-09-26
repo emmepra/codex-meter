@@ -26,3 +26,11 @@ xcrun swiftc -swift-version 5 -parse-as-library -module-cache-path .build/module
 xcrun swiftc -swift-version 5 -parse-as-library -module-cache-path .build/module-cache \
   Sources/ReleaseInfo.swift Sources/ReleaseChecker.swift Tests/ReleaseCheckerTests.swift -o .build/release-checker-tests
 .build/release-checker-tests
+
+xcrun swiftc -swift-version 5 -parse-as-library -module-cache-path .build/module-cache \
+  Sources/ReleaseInfo.swift Sources/ResetAnnouncements.swift Tests/ResetFeedTests.swift -o .build/reset-feed-tests
+.build/reset-feed-tests
+
+xcrun swiftc -swift-version 5 -parse-as-library -module-cache-path .build/module-cache \
+  Sources/ReleaseInfo.swift Sources/ResetAnnouncements.swift Tests/ResetReadStateTests.swift -o .build/reset-read-tests
+.build/reset-read-tests
