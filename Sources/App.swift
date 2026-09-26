@@ -158,11 +158,11 @@ struct MeterPanel: View {
     @ObservedObject private var login: LoginPreference
     @ObservedObject private var announcements: ResetAnnouncements
 
-    init(store: MeterStore) {
+    init(store: MeterStore, announcements: ResetAnnouncements? = nil) {
         self.store = store
         updater = store.updater
         login = store.login
-        announcements = store.announcements
+        self.announcements = announcements ?? store.announcements
     }
     private var budget: ComputeBudget? {
         guard !store.uncertain, let window = store.entry?.window else { return nil }
@@ -306,14 +306,19 @@ struct MeterPanel: View {
                    store.now.timeIntervalSince(post.date) <= ResetFeed.maximumAge {
                     HStack(spacing: 6) {
                         Button { announcements.openLatest() } label: {
-                            HStack(spacing: 4) {
-                                if announcements.hasUnread { Circle().fill(Color.orange).frame(width: 4, height: 4) }
-                                Text("𝕏").font(.system(size: 11)).accessibilityHidden(true)
-                                Text("Tibo · “reset”")
-                                if announcements.unavailable { Text("· cached").foregroundStyle(.secondary) }
-                                Spacer(minLength: 2)
-                                Text(postDateLabel(post.date, now: store.now))
-                                Image(systemName: "arrow.up.right").font(.system(size: 8))
+                            VStack(alignment: .leading, spacing: 3) {
+                                HStack(spacing: 4) {
+                                    if announcements.hasUnread { Circle().fill(Color.orange).frame(width: 4, height: 4) }
+                                    Text("𝕏").font(.system(size: 11)).accessibilityHidden(true)
+                                    Text("Tibo")
+                                    if announcements.unavailable { Text("· cached").foregroundStyle(.secondary) }
+                                    Spacer(minLength: 2)
+                                    Text(postDateLabel(post.date, now: store.now))
+                                    Image(systemName: "arrow.up.right").font(.system(size: 8))
+                                }
+                                Text(post.excerpt)
+                                    .lineLimit(2).multilineTextAlignment(.leading)
+                                    .fixedSize(horizontal: false, vertical: true)
                             }.font(.system(size: 10)).foregroundStyle(.primary)
                         }.buttonStyle(.plain).help("\(post.date.formatted(Date.FormatStyle(date: .complete, time: .shortened).locale(meterLocale)))\n\(post.text.prefix(500))\nVia x.noodl3.net · Keyword match, not confirmation of an account reset.")
                         if announcements.hasUnread {

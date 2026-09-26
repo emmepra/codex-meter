@@ -1,8 +1,17 @@
 import Foundation
+import SwiftUI
 
 @main struct ResetFeedTests {
     static func main() throws {
         let now = Date(timeIntervalSince1970: 1_790_424_000) // Synthetic, fixed date.
+        for text in ["reset", "We will RESET limits tomorrow.", String(repeating: "before ", count: 30) + "reset " + String(repeating: "after ", count: 30), "See https://example.com/reset before we reset limits", "👩🏽‍💻 News: reset for everyone"] {
+            let excerpt = ResetAnnouncement(id: "1", text: text, date: now).excerpt
+            let plain = String(excerpt.characters)
+            precondition(plain.count <= 72)
+            precondition(plain.range(of: "\\breset\\b", options: [.regularExpression, .caseInsensitive]) != nil)
+            precondition(!plain.contains("https://"))
+            precondition(excerpt.runs.contains { $0.font != nil }, "Keyword must have explicit emphasis")
+        }
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "EEE, dd MMM yyyy HH:mm:ss zzz"

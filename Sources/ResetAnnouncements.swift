@@ -7,6 +7,31 @@ struct ResetAnnouncement: Equatable {
     let text: String
     let date: Date
     var url: URL { URL(string: "https://x.com/thsottiaux/status/\(id)")! }
+
+    /// Keep the keyword visible, preserving whole words and the original wording.
+    var excerpt: AttributedString {
+        let clean = text.replacingOccurrences(of: "https?://\\S+", with: "", options: .regularExpression)
+            .split(whereSeparator: { $0.isWhitespace }).joined(separator: " ")
+        guard let match = clean.range(of: "\\breset\\b", options: [.regularExpression, .caseInsensitive]) else {
+            return AttributedString(String(clean.prefix(72)))
+        }
+        var start = clean.index(match.lowerBound, offsetBy: -24, limitedBy: clean.startIndex) ?? clean.startIndex
+        while start > clean.startIndex, start < match.lowerBound, clean[clean.index(before: start)] != " " {
+            start = clean.index(after: start)
+        }
+        var end = clean.index(start, offsetBy: 68, limitedBy: clean.endIndex) ?? clean.endIndex
+        while end < clean.endIndex, end > match.upperBound, clean[end] != " " {
+            end = clean.index(before: end)
+        }
+        let snippet = (start > clean.startIndex ? "… " : "")
+            + clean[start..<end].trimmingCharacters(in: .whitespaces)
+            + (end < clean.endIndex ? " …" : "")
+        var result = AttributedString(snippet)
+        if let keyword = result.range(of: "\\breset\\b", options: [.regularExpression, .caseInsensitive]) {
+            result[keyword].font = .system(size: 10, weight: .bold)
+        }
+        return result
+    }
 }
 
 struct ResetFeed {
