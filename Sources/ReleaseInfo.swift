@@ -23,6 +23,7 @@ struct ReleaseVersion: Comparable {
 }
 
 struct ReleaseInfo {
+    static let maximumBytes = 2_097_152
     static let repository = URL(string: "https://github.com/emmepra/codex-meter")!
     static let endpoint = URL(string: "https://api.github.com/repos/emmepra/codex-meter/releases/latest")!
     let version: ReleaseVersion
@@ -30,7 +31,7 @@ struct ReleaseInfo {
 
     init(data: Data, response: URLResponse) throws {
         guard let response = response as? HTTPURLResponse, response.statusCode == 200,
-              response.url == Self.endpoint, data.count <= 2_097_152 else { throw URLError(.badServerResponse) }
+              response.url == Self.endpoint, data.count <= Self.maximumBytes else { throw URLError(.badServerResponse) }
         struct Payload: Decodable { let tag_name: String; let draft: Bool; let prerelease: Bool }
         let payload = try JSONDecoder().decode(Payload.self, from: data)
         let text = payload.tag_name.hasPrefix("v") ? String(payload.tag_name.dropFirst()) : payload.tag_name
@@ -40,6 +41,16 @@ struct ReleaseInfo {
         self.version = version
         // Never trust response-supplied links, executable paths, or release body HTML.
         url = Self.repository.appendingPathComponent("releases/tag").appendingPathComponent(payload.tag_name)
+    }
+
+    static func readBody<Bytes: AsyncSequence>(_ bytes: Bytes) async throws -> Data where Bytes.Element == UInt8 {
+        var data = Data()
+        for try await byte in bytes {
+            try Task.checkCancellation()
+            guard data.count < maximumBytes else { throw URLError(.dataLengthExceedsMaximum) }
+            data.append(byte)
+        }
+        return data
     }
 }
 

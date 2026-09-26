@@ -112,6 +112,8 @@ Source is split into the menu bar UI and panel positioning, CLI client, usage de
 
 Builds target macOS 13+ and have been tested locally on macOS 26.6.2. A complete live reset cycle and older macOS releases have not yet been exercised.
 
+See [security boundaries and review](docs/SECURITY.md) for the trust model and known limitations.
+
 ## Contributing
 
 Use an [issue](https://github.com/emmepra/codex-meter/issues/new/choose) to report a bug or propose a change. Include the macOS and Codex CLI versions in bug reports.
