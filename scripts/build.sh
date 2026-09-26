@@ -12,7 +12,7 @@ APP_DIR="$BUILD_DIR/Codex Meter.app"
 mkdir -p "$APP_DIR/Contents/MacOS" "$APP_DIR/Contents/Resources" "$BUILD_DIR/module-cache"
 xcrun swiftc -swift-version 5 -O -parse-as-library -target arm64-apple-macosx13.0 \
   -module-cache-path "$BUILD_DIR/module-cache" \
-  Sources/UsageSnapshot.swift Sources/ComputeBudget.swift Sources/CodexClient.swift Sources/PanelPlacement.swift Sources/StatusPanel.swift Sources/StatusIndicator.swift Sources/ReleaseInfo.swift Sources/ReleaseChecker.swift Sources/App.swift \
+  Sources/UsageSnapshot.swift Sources/ComputeBudget.swift Sources/CodexClient.swift Sources/PanelPlacement.swift Sources/StatusPanel.swift Sources/StatusIndicator.swift Sources/ReleaseInfo.swift Sources/ReleaseChecker.swift Sources/LoginPreference.swift Sources/App.swift \
   -o "$APP_DIR/Contents/MacOS/CodexMeter"
 xcrun swift -module-cache-path "$BUILD_DIR/module-cache" scripts/make-icon.swift "$BUILD_DIR/AppIcon.iconset"
 iconutil -c icns "$BUILD_DIR/AppIcon.iconset" -o "$APP_DIR/Contents/Resources/AppIcon.icns"

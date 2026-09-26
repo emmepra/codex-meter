@@ -22,3 +22,7 @@ xcrun swiftc -swift-version 5 -parse-as-library -module-cache-path .build/module
 xcrun swiftc -swift-version 5 -parse-as-library -module-cache-path .build/module-cache \
   Sources/ReleaseInfo.swift Tests/ReleaseInfoTests.swift -o .build/release-info-tests
 .build/release-info-tests
+
+xcrun swiftc -swift-version 5 -parse-as-library -module-cache-path .build/module-cache \
+  Sources/ReleaseInfo.swift Sources/ReleaseChecker.swift Tests/ReleaseCheckerTests.swift -o .build/release-checker-tests
+.build/release-checker-tests

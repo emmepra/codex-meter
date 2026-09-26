@@ -35,6 +35,8 @@ func meterColor(_ value: Double?) -> Color {
 
 @MainActor
 final class MeterStore: ObservableObject {
+    let updater = ReleaseChecker()
+    let login = LoginPreference()
     @Published var snapshot: UsageSnapshot?
     @Published var updatedAt: Date?
     @Published var error: String?
@@ -141,7 +143,14 @@ struct ConsumptionTrack: View {
 
 struct MeterPanel: View {
     @ObservedObject var store: MeterStore
-    @StateObject private var updater = ReleaseChecker()
+    @ObservedObject private var updater: ReleaseChecker
+    @ObservedObject private var login: LoginPreference
+
+    init(store: MeterStore) {
+        self.store = store
+        updater = store.updater
+        login = store.login
+    }
     private var budget: ComputeBudget? {
         guard !store.uncertain, let window = store.entry?.window else { return nil }
         return ComputeBudget(window: window, now: store.now)
@@ -168,6 +177,10 @@ struct MeterPanel: View {
                 if store.refreshing { ProgressView().controlSize(.mini) }
                 Menu {
                     Toggle("Ring only", isOn: $store.iconOnly)
+                    Toggle("Launch at Login", isOn: Binding(get: { login.enabled }, set: { login.setEnabled($0) }))
+                    if login.needsApproval {
+                        Button("Approve Launch at Login…") { LoginPreference.openSettings() }
+                    }
                     if let windows = store.snapshot?.windows, windows.count > 1 {
                         Divider()
                         ForEach(windows) { entry in
@@ -184,6 +197,10 @@ struct MeterPanel: View {
                     Button("Refresh") { store.refresh() }.disabled(store.refreshing)
                     Divider()
                     Text("Codex Meter \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—")")
+                    Toggle("Automatically Check for Updates", isOn: $updater.automaticChecks)
+                    if let release = updater.availableRelease {
+                        Button("Update to \(release.version.text)…") { updater.openRelease() }
+                    }
                     Button(updater.checking ? "Checking for Updates…" : "Check for Updates…") { updater.check() }
                         .disabled(updater.checking)
                     Button("Open Repository") { NSWorkspace.shared.open(ReleaseChecker.repository) }
@@ -319,13 +336,17 @@ final class MeterDelegate: NSObject, NSApplicationDelegate {
         store.onChange = { [weak self] in self?.updateStatus() }
         updateStatus()
         store.start()
-        requestPanelOpen()
+        store.updater.onChange = { [weak self] in self?.updateStatus() }
+        store.updater.start()
+        let launchedAtLogin = NSAppleEventManager.shared().currentAppleEvent?
+            .paramDescriptor(forKeyword: keyAEPropData)?.enumCodeValue == keyAELaunchedAsLogInItem
+        if !launchedAtLogin { requestPanelOpen() }
     }
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         requestPanelOpen()
         return false
     }
-    func applicationWillTerminate(_ notification: Notification) { store.stop() }
+    func applicationWillTerminate(_ notification: Notification) { store.stop(); store.updater.stop() }
     @objc private func togglePanel() {
         if panel.isVisible {
             pendingPanelOpen = false
@@ -333,6 +354,7 @@ final class MeterDelegate: NSObject, NSApplicationDelegate {
         } else { requestPanelOpen() }
     }
     private func requestPanelOpen() {
+        store.login.refresh()
         guard !panel.isVisible else { return }
         pendingPanelOpen = true
         openAttempts = 0
@@ -360,11 +382,15 @@ final class MeterDelegate: NSObject, NSApplicationDelegate {
         button.image = StatusIndicator.image(used: used, uncertain: store.uncertain,
                                  showPercentage: !store.iconOnly, refreshing: store.refreshing,
                                  resetCount: store.statusResetCount,
-                                 appearance: button.effectiveAppearance)
+                                 appearance: button.effectiveAppearance,
+                                 updateAvailable: store.updater.availableRelease != nil)
         button.toolTip = entry.map {
             "Codex · \($0.window.label) · \(percentage(used)) used\nReset: \(resetDate($0.window.resetsAt) ?? "unavailable")\(store.uncertain ? "\nData needs refreshing" : "")"
         } ?? "Codex Meter · usage limits unavailable"
         button.toolTip = (button.toolTip ?? "Codex Meter") + "\nUsage limit resets: " + store.resetAvailabilityText
+        if let release = store.updater.availableRelease {
+            button.toolTip = (button.toolTip ?? "Codex Meter") + "\nUpdate available: " + release.version.text
+        }
         button.setAccessibilityLabel(button.toolTip)
         panel.schedulePosition()
         if pendingPanelOpen { attemptPanelOpen() }

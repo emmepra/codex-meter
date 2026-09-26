@@ -11,7 +11,7 @@ The downloaded app does not require Xcode, a Swift compiler or a source checkout
 
 ## Login & privacy
 
-Meter uses the official Codex CLI login; you do not give the project an account, password or API key. It reads quota and reset details through a short-lived local CLI process and has no Meter backend or telemetry. Usage stays in memory and only display preferences are saved; Codex CLI manages its own network access, authentication and logs. See the [README's privacy details](../README.md#login--privacy) and the next section for setup. The CLI account can differ from the Codex desktop account.
+Meter uses the official Codex CLI login; you do not give the project an account, password or API key. It reads quota and reset details through a short-lived local CLI process and has no Meter backend or telemetry. Usage stays in memory and only display and automatic-update preferences are saved; Codex CLI manages its own network access, authentication and logs. See the [README's privacy details](../README.md#login--privacy) and the next section for setup. The CLI account can differ from the Codex desktop account.
 
 ## Install Codex CLI and sign in
 
@@ -99,9 +99,16 @@ The **Options** (`…`) menu contains:
 
 | Menu item | Action |
 | --- | --- |
-| Ring only | Show only the ring in the menu bar |
+| Ring only | Hide the number; keep the ring and any indicator |
+| Launch at Login | Enable or disable the native macOS login item |
+| Automatically Check for Updates | Check silently at launch and every six hours |
+| Check for Updates… | Check now and display the result |
+| Update to <version>… | Open the available release for manual installation |
+| Open Repository | Open the project on GitHub |
 | Refresh | Read current usage |
 | Quit | Close Codex Meter |
+
+**Launch at Login** is off until selected. If approval is required, choose **Approve Launch at Login…** and allow the app in macOS Login Items. Keep the app in Applications; login launches do not open the panel.
 
 Other available quota windows appear in the same menu. Read the [README](../README.md) for the budget calculations and their limits.
 
@@ -150,11 +157,11 @@ Codex CLI updates are separate. Use the package manager you originally chose: `b
 
 ### Compact menu bar and project links
 
-The menu bar shows the used quota as a number inside the ring (the percent sign is omitted for readability). A green dot appears only when fresh data reports at least one available usage-limit reset. No dot is shown for zero, missing, or stale counts. The tooltip includes the exact count. Ring-only mode hides the number, retaining the reset dot.
+The menu bar shows the used quota as a number inside the ring (the percent sign is omitted for readability). A blue dot takes priority when an update is available; Options shows **Update to <version>…** with a link to the release. Otherwise, a green dot appears only when fresh data reports at least one available usage-limit reset. When no update is known, the dot is hidden for zero, missing, or stale reset counts. The tooltip includes the exact count. Ring-only mode hides the number, retaining any update or reset indicator.
 
 The panel header shows the OpenAI mark beside Codex Meter. The text-only Codex Meter footer links to the repository. Budget values use the system primary text color for light and dark appearance. The app bundle includes a dedicated meter icon, also used in update dialogs.
 
-**Check for Updates…** in Options checks the latest public GitHub release only when requested. It sends no quota or account data. An available update opens its release page for manual download and installation; the app does not replace itself automatically.
+**Automatically Check for Updates** is on by default. It checks the latest stable GitHub release at app launch and then at most every six hours while running, including after wake. Disable it in Options for manual-only checks. Automatic checks are silent, including network failures. **Check for Updates…** still checks immediately and displays the result. It sends no quota or account data. An available update opens its release page for manual download and installation; the app does not replace itself automatically.
 
 ## Uninstall
 

@@ -1,9 +1,9 @@
 import AppKit
 
 struct StatusIndicator {
-    static func image(used: Double?, uncertain: Bool, showPercentage: Bool, refreshing: Bool, resetCount: Int?, appearance: NSAppearance) -> NSImage {
+    static func image(used: Double?, uncertain: Bool, showPercentage: Bool, refreshing: Bool, resetCount: Int?, appearance: NSAppearance, updateAvailable: Bool = false) -> NSImage {
         let used = used.flatMap { $0.isFinite ? min(100, max(0, $0)) : nil }
-        let image = NSImage(size: NSSize(width: (resetCount ?? 0) > 0 ? 28 : 20, height: 20), flipped: false) { _ in
+        let image = NSImage(size: NSSize(width: updateAvailable || (resetCount ?? 0) > 0 ? 28 : 20, height: 20), flipped: false) { _ in
             appearance.performAsCurrentDrawingAppearance {
                 let background = NSBezierPath(ovalIn: NSRect(x: 1.5, y: 1.5, width: 17, height: 17))
                 background.lineWidth = 1.4
@@ -34,8 +34,8 @@ struct StatusIndicator {
                     let origin = NSPoint(x: (20 - textSize.width) / 2, y: (20 - textSize.height) / 2)
                     (centerText as NSString).draw(at: origin, withAttributes: attributes)
                 }
-                if let resetCount, resetCount > 0 {
-                    NSColor.systemGreen.setFill()
+                if updateAvailable || (resetCount ?? 0) > 0 {
+                    (updateAvailable ? NSColor.systemBlue : NSColor.systemGreen).setFill()
                     NSBezierPath(ovalIn: NSRect(x: 23, y: 8, width: 4, height: 4)).fill()
                 }
             }

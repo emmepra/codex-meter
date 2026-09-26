@@ -19,7 +19,7 @@ This is an independent project, not affiliated with OpenAI.
 
 Sign in with the official Codex CLI using ChatGPT before opening Meter. You do not give Codex Meter an account, password or API key. The CLI account may be different from the account signed in to the Codex desktop app; Meter reads whichever account the CLI uses. API billing is outside Meter's scope.
 
-Meter asks the locally launched CLI for quota and reset information through `account/rateLimits/read` over standard input/output, then closes that process. The app has no Meter backend or telemetry code. Usage snapshots stay in memory; only the selected quota window and ring-only display preference are saved. Codex CLI manages its own network access, authentication and any logs it writes.
+Meter asks the locally launched CLI for quota and reset information through `account/rateLimits/read` over standard input/output, then closes that process. The app has no Meter backend or telemetry code. Usage snapshots stay in memory; only the selected quota window, ring-only display and automatic-update preferences are saved. Codex CLI manages its own network access, authentication and any logs it writes.
 
 The displayed percentages are quota points, not token counts. Budget allowance is remaining quota divided by time to reset; runway and reset projections assume the current average pace. These figures are not a history of actual usage or a measure of productivity.
 
@@ -37,17 +37,17 @@ The app is **ad hoc signed**, without an Apple Developer ID signature or notariz
 
 Click the menu bar indicator to open the compact panel, anchored directly below the menu bar even when its content changes height. The ring shows **used quota**, with its percentage centered inside; **Ring only** hides that number. The larger percentage in the panel shows **remaining quota**. **Resets in** shows the time until the next reset.
 
-The **Options** (`…`) menu contains **Ring only**, available quota windows, **Refresh**, **Check for Updates…**, **Open Repository** and **Quit**. Usage refreshes every three minutes and after wake; the arrow refreshes immediately. Automatic launch at login is not enabled.
+The **Options** (`…`) menu contains **Ring only**, available quota windows, **Refresh**, **Check for Updates…**, **Open Repository** and **Quit**. Usage refreshes every three minutes and after wake; the arrow refreshes immediately. **Launch at Login** in Options enables the native macOS login item; it is off until you choose it. If macOS requires approval, use **Approve Launch at Login…**. Keep the app in Applications. Login launches stay in the menu bar without opening the panel.
 
 **Usage limit resets** shows the number of banked resets available to the Codex CLI account, including a confirmed zero. A fresh count above one is green; one or zero is red. Out-of-date counts remain orange, while **Unavailable** stays neutral and does not mean zero. **Out of date** marks a retained count after a failed refresh or more than ten minutes without an update. This account-level count is separate from the scheduled **Resets in** countdown and does not imply that a window is eligible for redemption. Redeem resets in Codex; Meter only displays availability.
 
 ### Compact menu bar and project links
 
-The menu bar shows the used quota as a number inside the ring (the percent sign is omitted for readability). A green dot appears only when fresh data reports at least one available usage-limit reset. No dot is shown for zero, missing, or stale counts. The tooltip includes the exact count. Ring-only mode hides the number, retaining the reset dot.
+The menu bar shows the used quota as a number inside the ring (the percent sign is omitted for readability). A blue dot takes priority when an update is available; Options shows **Update to <version>…** with a link to the release. Otherwise, a green dot appears only when fresh data reports at least one available usage-limit reset. When no update is known, the dot is hidden for zero, missing, or stale reset counts. The tooltip includes the exact count. Ring-only mode hides the number, retaining any update or reset indicator.
 
 The panel header shows the OpenAI mark beside Codex Meter. The text-only Codex Meter footer links to the repository. Budget values use the system primary text color for light and dark appearance. The app bundle includes a dedicated meter icon, also used in update dialogs.
 
-**Check for Updates…** in Options checks the latest public GitHub release only when requested. It sends no quota or account data. An available update opens its release page for manual download and installation; the app does not replace itself automatically.
+**Automatically Check for Updates** is on by default. It checks the latest stable GitHub release at app launch and then at most every six hours while running, including after wake. Disable it in Options for manual-only checks. Automatic checks are silent, including network failures. **Check for Updates…** still checks immediately and displays the result. It sends no quota or account data. An available update opens its release page for manual download and installation; the app does not replace itself automatically.
 
 ### What the statistics mean
 
@@ -67,7 +67,7 @@ The window's start is inferred from its duration and reset time. Projections ass
 
 Codex Meter starts a short-lived `codex app-server` process and reads `account/rateLimits/read` through its documented local protocol. It uses the CLI's existing login, starts no model turns and never consumes reset credits. If desktop and CLI use different accounts, the app follows the CLI account.
 
-Usage snapshots stay in memory. Only display preferences are saved by the app. Authentication remains managed by Codex; no tokens are copied into this project.
+Usage snapshots stay in memory. Only display and automatic-update preferences are saved by the app; macOS manages the login item. Authentication remains managed by Codex; no tokens are copied into this project.
 
 See the [official Codex App Server documentation](https://learn.chatgpt.com/docs/app-server#6-rate-limits-chatgpt). Compatibility has been checked with Codex CLI 0.153.0.
 

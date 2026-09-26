@@ -47,6 +47,12 @@ struct MeterPanelTests {
         for appearanceName in [NSAppearance.Name.aqua, .darkAqua] {
             let appearance = NSAppearance(named: appearanceName)!
             for resetCount: Int? in [nil, 0, 1, 3] {
+                let updateIcon = StatusIndicator.image(used: 37, uncertain: false, showPercentage: true,
+                    refreshing: false, resetCount: resetCount, appearance: appearance, updateAvailable: true)
+                precondition(updateIcon.size.width == 28)
+                let updateBitmap = NSBitmapImageRep(data: updateIcon.tiffRepresentation!)!
+                try updateBitmap.representation(using: .png, properties: [:])!.write(to: URL(fileURLWithPath:
+                    ".build/update-\(appearanceName.rawValue)-\(resetCount.map(String.init) ?? "unknown").png"))
                 for used: Double? in [nil, 0, 37, 100, .nan, .infinity] {
                     for uncertain in [false, true] {
                         let icon = StatusIndicator.image(used: used, uncertain: uncertain,
