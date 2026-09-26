@@ -62,6 +62,7 @@ final class MeterStore: ObservableObject {
     var stale: Bool { error != nil || (updatedAt.map { now.timeIntervalSince($0) > 600 } ?? false) }
     var resetPending: Bool { entry?.window.resetsAt.map { $0 <= now.timeIntervalSince1970 } ?? false }
     var uncertain: Bool { stale || resetPending }
+    var statusResetCount: Int? { stale ? nil : snapshot?.availableResetCount }
     var resetAvailabilityText: String {
         guard let count = snapshot?.availableResetCount else { return "Unavailable" }
         return stale ? "\(count) · Out of date" : "\(count) available"
@@ -140,16 +141,25 @@ struct ConsumptionTrack: View {
 
 struct MeterPanel: View {
     @ObservedObject var store: MeterStore
+    @StateObject private var updater = ReleaseChecker()
     private var budget: ComputeBudget? {
         guard !store.uncertain, let window = store.entry?.window else { return nil }
         return ComputeBudget(window: window, now: store.now)
     }
     private var daily: Bool { (budget?.remainingSeconds ?? 0) >= 86_400 }
+    private var resetAvailabilityColor: Color {
+        guard let count = store.snapshot?.availableResetCount else { return .secondary }
+        if store.stale { return .orange }
+        return Color(nsColor: count > 1 ? .systemGreen : .systemRed)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 6) {
-                Text("Codex").font(.system(size: 11, weight: .semibold))
+                Image(nsImage: Bundle.main.url(forResource: "OpenAI", withExtension: "png").flatMap { NSImage(contentsOf: $0) } ?? NSImage(size: NSSize(width: 16, height: 16))).renderingMode(.template)
+                    .resizable().scaledToFit().frame(width: 16, height: 16)
+                    .accessibilityLabel("OpenAI")
+                Text("Codex Meter").font(.system(size: 11, weight: .semibold))
                 if let entry = store.entry {
                     Text(entry.bucketId == "codex" ? entry.window.label : entry.bucketName)
                         .font(.system(size: 10)).foregroundStyle(.secondary).lineLimit(1)
@@ -172,6 +182,12 @@ struct MeterPanel: View {
                     }
                     Divider()
                     Button("Refresh") { store.refresh() }.disabled(store.refreshing)
+                    Divider()
+                    Text("Codex Meter \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—")")
+                    Button(updater.checking ? "Checking for Updates…" : "Check for Updates…") { updater.check() }
+                        .disabled(updater.checking)
+                    Button("Open Repository") { NSWorkspace.shared.open(ReleaseChecker.repository) }
+                    Divider()
                     Button("Quit") { NSApplication.shared.terminate(nil) }
                 } label: {
                     Image(systemName: "ellipsis").font(.system(size: 11, weight: .medium))
@@ -238,8 +254,8 @@ struct MeterPanel: View {
 
             Divider()
             stat("Usage limit resets", store.resetAvailabilityText,
-                 warning: store.stale && store.snapshot?.availableResetCount != nil)
-                .help("Banked resets for the Codex CLI account. Availability does not mean a quota window is eligible. Redeem resets in Codex.")
+                 valueColor: resetAvailabilityColor)
+                .help("Banked resets for the Codex CLI account. A fresh count above one is green; one or zero is red. Out-of-date counts stay orange. Availability does not mean a quota window is eligible. Redeem resets in Codex.")
 
             if let error = store.error {
                 Label(error, systemImage: "exclamationmark.triangle")
@@ -249,7 +265,11 @@ struct MeterPanel: View {
                     .font(.system(size: 10)).foregroundStyle(.orange)
             }
             HStack {
-                Text(budget == nil ? "" : "Uniform budget · period estimates")
+                Link(destination: ReleaseChecker.repository) {
+                    HStack(spacing: 5) {
+                        Text("Codex Meter").font(.system(size: 11, weight: .medium))
+                    }.foregroundStyle(.primary)
+                }.help("Codex Meter on GitHub")
                 Spacer(minLength: 3)
                 if let date = store.updatedAt { Text(date.formatted(Date.FormatStyle(date: .omitted, time: .shortened).locale(meterLocale))) }
                 Button { store.refresh() } label: {
@@ -258,12 +278,14 @@ struct MeterPanel: View {
             }.font(.system(size: 9)).foregroundStyle(.secondary)
         }.padding(14).frame(width: 270).environment(\.locale, meterLocale)
     }
-    private func stat(_ label: String, _ value: String, prominent: Bool = false, warning: Bool = false) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 6) {
+    private func stat(_ label: String, _ value: String, prominent: Bool = false, warning: Bool = false,
+                      valueColor: Color? = nil) -> some View {
+        let color = warning ? Color.orange : (valueColor ?? Color.primary)
+        return HStack(alignment: .firstTextBaseline, spacing: 6) {
             Text(label).foregroundStyle(.secondary)
             Spacer(minLength: 2)
             Text(value).fontWeight(prominent ? .semibold : .regular)
-                .foregroundStyle(warning ? Color.orange : (prominent ? Color.accentColor : Color.primary))
+                .foregroundStyle(color)
                 .monospacedDigit()
         }.font(.system(size: 11)).fixedSize(horizontal: false, vertical: true)
     }
@@ -277,6 +299,7 @@ final class MeterDelegate: NSObject, NSApplicationDelegate {
                                          anchor: { [weak self] in self?.statusItem?.button?.window })
     private var pendingPanelOpen = false
     private var openAttempts = 0
+    private var appearanceObservation: NSKeyValueObservation?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         if let id = Bundle.main.bundleIdentifier,
@@ -290,6 +313,9 @@ final class MeterDelegate: NSObject, NSApplicationDelegate {
         statusItem.button?.action = #selector(togglePanel)
         statusItem.button?.font = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .regular)
         statusItem.button?.imagePosition = .imageLeading
+        appearanceObservation = statusItem.button?.observe(\.effectiveAppearance, options: [.new]) { [weak self] _, _ in
+            Task { @MainActor in self?.updateStatus() }
+        }
         store.onChange = { [weak self] in self?.updateStatus() }
         updateStatus()
         store.start()
@@ -330,42 +356,20 @@ final class MeterDelegate: NSObject, NSApplicationDelegate {
         guard let button = statusItem.button else { return }
         let entry = store.entry
         let used = entry?.window.usedPercent
-        var title = entry == nil ? (store.refreshing ? "…" : "—") : percentage(used)
-        if store.uncertain { title += " !" }
-        button.title = store.iconOnly ? "" : " " + title
-        button.image = ringImage(used: used, uncertain: store.uncertain)
+        button.title = store.uncertain && !store.iconOnly && entry != nil ? " !" : ""
+        button.image = StatusIndicator.image(used: used, uncertain: store.uncertain,
+                                 showPercentage: !store.iconOnly, refreshing: store.refreshing,
+                                 resetCount: store.statusResetCount,
+                                 appearance: button.effectiveAppearance)
         button.toolTip = entry.map {
             "Codex · \($0.window.label) · \(percentage(used)) used\nReset: \(resetDate($0.window.resetsAt) ?? "unavailable")\(store.uncertain ? "\nData needs refreshing" : "")"
         } ?? "Codex Meter · usage limits unavailable"
+        button.toolTip = (button.toolTip ?? "Codex Meter") + "\nUsage limit resets: " + store.resetAvailabilityText
         button.setAccessibilityLabel(button.toolTip)
         panel.schedulePosition()
         if pendingPanelOpen { attemptPanelOpen() }
     }
-    private func ringImage(used: Double?, uncertain: Bool) -> NSImage {
-        let image = NSImage(size: NSSize(width: 12, height: 12), flipped: false) { _ in
-            let background = NSBezierPath(ovalIn: NSRect(x: 1.5, y: 1.5, width: 9, height: 9))
-            background.lineWidth = 1.5
-            NSColor.labelColor.withAlphaComponent(uncertain ? 0.45 : 0.22).setStroke()
-            background.stroke()
-            if let used, used > 0 {
-                let arc = NSBezierPath()
-                arc.appendArc(withCenter: NSPoint(x: 6, y: 6), radius: 4.5,
-                              startAngle: 90, endAngle: CGFloat(90 - min(100, max(0, used)) * 3.6), clockwise: true)
-                arc.lineWidth = 1.7
-                arc.lineCapStyle = .round
-                NSColor.labelColor.withAlphaComponent(uncertain ? 0.45 : 1).setStroke()
-                arc.stroke()
-            }
-            if uncertain {
-                let dot = NSBezierPath(ovalIn: NSRect(x: 4.5, y: 4.5, width: 3, height: 3))
-                NSColor.labelColor.setFill()
-                dot.fill()
-            }
-            return true
-        }
-        image.isTemplate = true
-        return image
-    }
+
 }
 
 #if !METER_TESTS
