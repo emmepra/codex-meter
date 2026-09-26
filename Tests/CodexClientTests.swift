@@ -38,6 +38,24 @@ import Darwin
         try script.write(to: fixture, atomically: true, encoding: .utf8)
         try manager.setAttributes([.posixPermissions: 0o700], ofItemAtPath: fixture.path)
 
+        let fakeHome = root.appendingPathComponent("home")
+        let alias = fakeHome.appendingPathComponent(".local/bin/codex")
+        try manager.createDirectory(at: alias.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try manager.createSymbolicLink(at: alias, withDestinationURL: root.appendingPathComponent("removed-cli"))
+        let desktopApp = root.appendingPathComponent("Moved ChatGPT.app")
+        let bundled = desktopApp.appendingPathComponent("Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex")
+        try manager.createDirectory(at: bundled.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try manager.copyItem(at: fixture, to: bundled)
+        let candidates = CodexClient.executablePaths(home: fakeHome, path: "", codexApps: [desktopApp])
+        precondition(candidates.first == alias, "Preserve installed CLI priority")
+        precondition(CodexClient.firstExecutable(in: [alias, bundled]) == bundled,
+                     "A broken CLI alias must fall back to the desktop-bundled executable")
+        precondition(candidates.contains(bundled), "Find CLI inside a moved Codex desktop app")
+        try manager.removeItem(at: alias)
+        try manager.createSymbolicLink(at: alias, withDestinationURL: bundled)
+        precondition(CodexClient.firstExecutable(in: [alias, bundled]) == alias,
+                     "A valid standalone alias retains priority")
+
         func setMode(_ value: String) throws {
             try? manager.removeItem(at: pidURL)
             try value.write(to: modeURL, atomically: true, encoding: .utf8)

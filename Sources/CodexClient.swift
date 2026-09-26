@@ -1,5 +1,6 @@
 import Foundation
 import Darwin
+import AppKit
 
 /// A short-lived connection to the installed Codex CLI. No model turns are started.
 struct CodexClient {
@@ -21,14 +22,35 @@ struct CodexClient {
 
     static func findExecutable() -> URL? {
         let home = FileManager.default.homeDirectoryForCurrentUser
-        let candidates = [
-            home.appendingPathComponent(".local/bin/codex").path,
-            "/opt/homebrew/bin/codex",
-            "/usr/local/bin/codex"
-        ] + (ProcessInfo.processInfo.environment["PATH"] ?? "")
-            .split(separator: ":").map { String($0) + "/codex" }
-        return candidates.first(where: FileManager.default.isExecutableFile(atPath:))
-            .map { URL(fileURLWithPath: $0) }
+        let codexApp = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.openai.codex")
+        let appLocations = ([codexApp].compactMap { $0 } + [
+            URL(fileURLWithPath: "/Applications/ChatGPT.app"),
+            home.appendingPathComponent("Applications/ChatGPT.app")
+        ])
+        let paths = executablePaths(home: home,
+                                    path: ProcessInfo.processInfo.environment["PATH"] ?? "",
+                                    codexApps: appLocations)
+        return firstExecutable(in: paths)
+    }
+
+    static func executablePaths(home: URL, path: String, codexApps: [URL]) -> [URL] {
+        let standalone = [home.appendingPathComponent(".local/bin/codex"),
+                          URL(fileURLWithPath: "/opt/homebrew/bin/codex"),
+                          URL(fileURLWithPath: "/usr/local/bin/codex")]
+        let inherited = path.split(separator: ":").map {
+            URL(fileURLWithPath: String($0)).appendingPathComponent("codex")
+        }
+        // Finder does not inherit the shell's PATH. Codex desktop includes a CLI,
+        // and its location can change when the desktop app is updated or moved.
+        let bundled = codexApps.flatMap { app in
+            [app.appendingPathComponent("Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex"),
+             app.appendingPathComponent("Contents/Resources/codex")]
+        }
+        return standalone + inherited + bundled
+    }
+
+    static func firstExecutable(in paths: [URL]) -> URL? {
+        paths.first { FileManager.default.isExecutableFile(atPath: $0.path) }
     }
 }
 
@@ -43,7 +65,7 @@ enum CodexClientError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .cliNotFound: return "Codex CLI not found. Install it and sign in with your ChatGPT account."
+        case .cliNotFound: return "Codex CLI not found. Install or update Codex CLI or the Codex desktop app, then refresh."
         case .couldNotStart: return "Could not start Codex CLI. Check that it works in Terminal."
         case .timeout: return "Codex did not respond in time."
         case .disconnected: return "The connection to Codex closed before a response arrived."
