@@ -158,11 +158,11 @@ struct MeterPanel: View {
     @ObservedObject private var login: LoginPreference
     @ObservedObject private var announcements: ResetAnnouncements
 
-    init(store: MeterStore) {
+    init(store: MeterStore, announcements: ResetAnnouncements? = nil) {
         self.store = store
         updater = store.updater
         login = store.login
-        announcements = store.announcements
+        self.announcements = announcements ?? store.announcements
     }
     private var budget: ComputeBudget? {
         guard !store.uncertain, let window = store.entry?.window else { return nil }

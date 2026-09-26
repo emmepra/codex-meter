@@ -96,6 +96,21 @@ struct MeterPanelTests {
             try bitmap.representation(using: .png, properties: [:])!.write(to: URL(fileURLWithPath:
                 ".build/panel-\(appearanceName.rawValue).png"))
         }
+        // Reproducible README preview: no network, account data or real post text.
+        let demoPreferences = UserDefaults(suiteName: "CodexMeter.SyntheticPreview")!
+        demoPreferences.removePersistentDomain(forName: "CodexMeter.SyntheticPreview")
+        defer { demoPreferences.removePersistentDomain(forName: "CodexMeter.SyntheticPreview") }
+        let demoPost = ResetAnnouncement(id: "1", text: "Demo announcement: we will reset usage limits tomorrow for everyone. More details soon.", date: now)
+        let demoAnnouncements = ResetAnnouncements(preferences: demoPreferences, latest: demoPost)
+        let demo = NSHostingView(rootView: MeterPanel(store: store, announcements: demoAnnouncements)
+            .environment(\.colorScheme, .dark)
+            .background(Color(nsColor: .windowBackgroundColor)))
+        demo.appearance = NSAppearance(named: .darkAqua)
+        demo.frame = NSRect(origin: .zero, size: demo.fittingSize)
+        demo.layoutSubtreeIfNeeded()
+        let demoBitmap = demo.bitmapImageRepForCachingDisplay(in: demo.bounds)!
+        demo.cacheDisplay(in: demo.bounds, to: demoBitmap)
+        try demoBitmap.representation(using: .png, properties: [:])!.write(to: URL(fileURLWithPath: ".build/readme-demo.png"))
         store.error = "Could not read usage limits. Try again shortly."
         try render("stale")
         store.error = nil
