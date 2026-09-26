@@ -11,7 +11,7 @@ The downloaded app does not require Xcode, a Swift compiler or a source checkout
 
 ## Login & privacy
 
-Meter uses the official Codex CLI login; you do not give the project an account, password or API key. It reads quota and reset details through a short-lived local CLI process and has no Meter backend or telemetry. Usage stays in memory and only display preferences are saved; Codex CLI manages its own network access, authentication and logs. See the [README's privacy details](../README.md#login--privacy) and the next section for setup. The CLI account can differ from the Codex desktop account.
+Meter uses the official Codex CLI login; you do not give the project an account, password or API key. It reads quota and reset details through a short-lived local CLI process and has no Meter backend or telemetry. Usage stays in memory and only display, automatic-update and reset-post preferences plus the last-read post ID are saved; Codex CLI manages its own network access, authentication and logs. See the [README's privacy details](../README.md#login--privacy) and the next section for setup. The CLI account can differ from the Codex desktop account.
 
 ## Install Codex CLI and sign in
 
@@ -91,17 +91,32 @@ The app uses ad hoc signing for local use and is not notarized. Build output is 
 
 Gatekeeper may block the downloaded app because it has no Developer ID signature or notarization. If you trust the copy downloaded from this repository's release, first try opening it, then open **System Settings → Privacy & Security**. Find the blocked-app notice, choose **Open Anyway**, and confirm **Open** in the next prompt. See [Apple's guide to safely opening apps](https://support.apple.com/en-us/102445) for the current instructions.
 
-Codex Meter appears in the menu bar without a Dock icon. Click the small ring and percentage to open the panel. The percentage in the menu bar is **used** quota; **remaining** in the panel is the quota still available. **Resets in** shows the reset countdown.
+Codex Meter appears in the menu bar without a Dock icon. Click the small ring to open the panel; the used percentage is centered inside the ring. **Ring only** hides that number. The larger percentage in the panel is **remaining** quota. **Resets in** shows the reset countdown.
+
+**Usage limit resets** shows banked resets for the Codex CLI account. A fresh count above one is green; one or zero is red. Out-of-date counts remain orange, and **Unavailable** is distinct from zero.
 
 The **Options** (`…`) menu contains:
 
 | Menu item | Action |
 | --- | --- |
-| Ring only | Show only the ring in the menu bar |
+| Ring only | Hide the number; keep the ring and any indicator |
+| Launch at Login | Enable or disable the native macOS login item |
+| Automatically Check for Updates | Check silently at launch and every six hours |
+| Check for Updates… | Check now and display the result |
+| Update to <version>… | Open the available release for manual installation |
+| Open Repository | Open the project on GitHub |
 | Refresh | Read current usage |
 | Quit | Close Codex Meter |
 
+**Launch at Login** is off until selected. If approval is required, choose **Approve Launch at Login…** and allow the app in macOS Login Items. Keep the app in Applications; login launches do not open the panel.
+
 Other available quota windows appear in the same menu. Read the [README](../README.md) for the budget calculations and their limits.
+
+### Reset posts from Tibo
+
+**Check Tibo’s Reset Posts** in Options is on by default. Meter reads the public RSS feed at `https://x.noodl3.net/thsottiaux/rss` at launch and every 30 minutes, with a due check after wake. This is a third-party Nitter instance, not an official X/OpenAI service; it may be unavailable, delayed or incomplete. The source sees ordinary connection metadata such as the IP address, but Meter sends no account data, quota, cookies or credentials. No X API key, Python runtime or new library is required.
+
+The panel shows a single compact link for the newest matching post in the last seven days. It matches the standalone word **reset**, case-insensitively, in the post title/text after removing URLs; it checks the author and post link and ignores other authors and reposts. Recent posts show **Today** or **Yesterday**. Hover for the full date, time and excerpt; click to open the original post on X. A keyword match does not confirm a reset on your account. Post contents stay in memory; only the last-read post ID and the feature preference are saved. Opening the post, using the small **Mark as seen** checkmark on its row, or choosing **Mark Tibo Post as Read** clears the amber dot across restarts. A newer matching post lights it again. The dot is also acknowledged if two fresh successful quota reads, observed after detecting the post and at most ten minutes apart, show an increase in available resets. The link stays visible. This is a dismissal heuristic, not confirmation that the post caused that reset. An initial positive count, missing/failed reads or a long gap do not establish a connection; the in-memory comparison restarts. Cached matches are marked if a refresh fails, and **Tibo posts unavailable** distinguishes a failed source from no recent match. Disable the option to stop fetching and hide the row.
 
 ## Check a problem
 
@@ -145,6 +160,14 @@ open "$HOME/Applications/Codex Meter.app"
 Reuse `--destination` if you chose a custom install folder. If Git reports local changes or diverging history, resolve those changes before updating.
 
 Codex CLI updates are separate. Use the package manager you originally chose: `brew upgrade --cask codex` or `npm install -g @openai/codex`. These are the update commands in the [official CLI guide](https://learn.chatgpt.com/docs/codex/cli).
+
+### Compact menu bar and project links
+
+The menu bar shows the used quota as a number inside the ring (the percent sign is omitted for readability). Three independent corner dots surround the ring: green at top left for fresh positive reset availability, blue at top right for an available app update, and amber at bottom right for an unread Tibo post mentioning **reset**. They can appear together. Missing, zero or stale reset counts never produce a green dot. Options shows **Update to <version>…** when a release is available. The tooltip includes the exact count. Ring-only mode hides the number, retaining any update or reset indicator.
+
+The panel header shows the OpenAI mark beside Codex Meter. The Codex Meter title links to the repository; the refresh button is beside Options in the header, replacing itself with a spinner while loading. Hover for the last successful refresh date and time; there is no footer row. Budget values use the system primary text color for light and dark appearance. The app bundle includes a dedicated meter icon, also used in update dialogs.
+
+**Automatically Check for Updates** is on by default. It checks the latest stable GitHub release at app launch and then at most every six hours while running, including after wake. Disable it in Options for manual-only checks. Automatic checks are silent, including network failures. **Check for Updates…** still checks immediately and displays the result. It sends no quota or account data. An available update opens its release page for manual download and installation; the app does not replace itself automatically.
 
 ## Uninstall
 

@@ -8,6 +8,13 @@ func percentage(_ value: Double?) -> String {
     return "\(Int(value.rounded()))%"
 }
 
+func postDateLabel(_ date: Date, now: Date = Date(), calendar: Calendar = .current) -> String {
+    if calendar.isDate(date, inSameDayAs: now) { return "Today" }
+    if let yesterday = calendar.date(byAdding: .day, value: -1, to: now),
+       calendar.isDate(date, inSameDayAs: yesterday) { return "Yesterday" }
+    return date.formatted(.dateTime.locale(meterLocale).day().month(.abbreviated))
+}
+
 func remainingTime(_ reset: Double?, now: Date = Date()) -> String {
     guard let reset, reset.isFinite else { return "Reset time unavailable" }
     let seconds = reset - now.timeIntervalSince1970
@@ -35,6 +42,9 @@ func meterColor(_ value: Double?) -> Color {
 
 @MainActor
 final class MeterStore: ObservableObject {
+    let updater = ReleaseChecker()
+    let login = LoginPreference()
+    let announcements = ResetAnnouncements()
     @Published var snapshot: UsageSnapshot?
     @Published var updatedAt: Date?
     @Published var error: String?
@@ -62,6 +72,7 @@ final class MeterStore: ObservableObject {
     var stale: Bool { error != nil || (updatedAt.map { now.timeIntervalSince($0) > 600 } ?? false) }
     var resetPending: Bool { entry?.window.resetsAt.map { $0 <= now.timeIntervalSince1970 } ?? false }
     var uncertain: Bool { stale || resetPending }
+    var statusResetCount: Int? { stale ? nil : snapshot?.availableResetCount }
     var resetAvailabilityText: String {
         guard let count = snapshot?.availableResetCount else { return "Unavailable" }
         return stale ? "\(count) · Out of date" : "\(count) available"
@@ -98,10 +109,13 @@ final class MeterStore: ObservableObject {
                 let data = try await client.readLimits()
                 guard !Task.isCancelled else { return }
                 snapshot = try UsageSnapshot(data: data)
-                updatedAt = Date()
+                let receivedAt = Date()
+                updatedAt = receivedAt
                 error = nil
+                announcements.observeResetCount(snapshot?.availableResetCount, at: receivedAt)
             } catch {
                 guard !Task.isCancelled else { return }
+                announcements.observeResetCount(nil)
                 self.error = (error as? CodexClientError)?.errorDescription ?? "Could not read usage limits. Try again shortly."
             }
             now = Date()
@@ -140,24 +154,55 @@ struct ConsumptionTrack: View {
 
 struct MeterPanel: View {
     @ObservedObject var store: MeterStore
+    @ObservedObject private var updater: ReleaseChecker
+    @ObservedObject private var login: LoginPreference
+    @ObservedObject private var announcements: ResetAnnouncements
+
+    init(store: MeterStore) {
+        self.store = store
+        updater = store.updater
+        login = store.login
+        announcements = store.announcements
+    }
     private var budget: ComputeBudget? {
         guard !store.uncertain, let window = store.entry?.window else { return nil }
         return ComputeBudget(window: window, now: store.now)
     }
     private var daily: Bool { (budget?.remainingSeconds ?? 0) >= 86_400 }
+    private var resetAvailabilityColor: Color {
+        guard let count = store.snapshot?.availableResetCount else { return .secondary }
+        if store.stale { return .orange }
+        return Color(nsColor: count > 1 ? .systemGreen : .systemRed)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 6) {
-                Text("Codex").font(.system(size: 11, weight: .semibold))
+                Image(nsImage: Bundle.main.url(forResource: "OpenAI", withExtension: "png").flatMap { NSImage(contentsOf: $0) } ?? NSImage(size: NSSize(width: 16, height: 16))).renderingMode(.template)
+                    .resizable().scaledToFit().frame(width: 16, height: 16)
+                    .accessibilityLabel("OpenAI")
+                Link(destination: ReleaseChecker.repository) {
+                    Text("Codex Meter").font(.system(size: 11, weight: .semibold))
+                }.buttonStyle(.plain).help("Codex Meter on GitHub")
                 if let entry = store.entry {
                     Text(entry.bucketId == "codex" ? entry.window.label : entry.bucketName)
                         .font(.system(size: 10)).foregroundStyle(.secondary).lineLimit(1)
                 }
                 Spacer()
-                if store.refreshing { ProgressView().controlSize(.mini) }
+                Button { store.refresh() } label: {
+                    ZStack {
+                        if store.refreshing { ProgressView().controlSize(.mini) }
+                        else { Image(systemName: "arrow.clockwise").font(.system(size: 10)) }
+                    }.frame(width: 16, height: 16)
+                }.buttonStyle(.plain).disabled(store.refreshing)
+                    .help(store.updatedAt.map { "Last updated: " + $0.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened).locale(meterLocale)) + "\nRefresh now" } ?? "Not updated yet. Refresh now")
+                    .accessibilityLabel(store.refreshing ? "Refreshing" : "Refresh now")
                 Menu {
                     Toggle("Ring only", isOn: $store.iconOnly)
+                    Toggle("Launch at Login", isOn: Binding(get: { login.enabled }, set: { login.setEnabled($0) }))
+                    if login.needsApproval {
+                        Button("Approve Launch at Login…") { LoginPreference.openSettings() }
+                    }
                     if let windows = store.snapshot?.windows, windows.count > 1 {
                         Divider()
                         ForEach(windows) { entry in
@@ -172,6 +217,21 @@ struct MeterPanel: View {
                     }
                     Divider()
                     Button("Refresh") { store.refresh() }.disabled(store.refreshing)
+                    Divider()
+                    Text("Codex Meter \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—")")
+                    if announcements.hasUnread {
+                        Button("Mark Tibo Post as Read") { announcements.markRead() }
+                    }
+                    Toggle("Check Tibo’s Reset Posts", isOn: $announcements.enabled)
+                        .help("Read the public RSS feed at x.noodl3.net every 30 minutes. No X login or API key.")
+                    Toggle("Automatically Check for Updates", isOn: $updater.automaticChecks)
+                    if let release = updater.availableRelease {
+                        Button("Update to \(release.version.text)…") { updater.openRelease() }
+                    }
+                    Button(updater.checking ? "Checking for Updates…" : "Check for Updates…") { updater.check() }
+                        .disabled(updater.checking)
+                    Button("Open Repository") { NSWorkspace.shared.open(ReleaseChecker.repository) }
+                    Divider()
                     Button("Quit") { NSApplication.shared.terminate(nil) }
                 } label: {
                     Image(systemName: "ellipsis").font(.system(size: 11, weight: .medium))
@@ -238,8 +298,37 @@ struct MeterPanel: View {
 
             Divider()
             stat("Usage limit resets", store.resetAvailabilityText,
-                 warning: store.stale && store.snapshot?.availableResetCount != nil)
-                .help("Banked resets for the Codex CLI account. Availability does not mean a quota window is eligible. Redeem resets in Codex.")
+                 valueColor: resetAvailabilityColor)
+                .help("Banked resets for the Codex CLI account. A fresh count above one is green; one or zero is red. Out-of-date counts stay orange. Availability does not mean a quota window is eligible. Redeem resets in Codex.")
+
+            if announcements.enabled {
+                if let post = announcements.latest,
+                   store.now.timeIntervalSince(post.date) <= ResetFeed.maximumAge {
+                    HStack(spacing: 6) {
+                        Button { announcements.openLatest() } label: {
+                            HStack(spacing: 4) {
+                                if announcements.hasUnread { Circle().fill(Color.orange).frame(width: 4, height: 4) }
+                                Text("𝕏").font(.system(size: 11)).accessibilityHidden(true)
+                                Text("Tibo · “reset”")
+                                if announcements.unavailable { Text("· cached").foregroundStyle(.secondary) }
+                                Spacer(minLength: 2)
+                                Text(postDateLabel(post.date, now: store.now))
+                                Image(systemName: "arrow.up.right").font(.system(size: 8))
+                            }.font(.system(size: 10)).foregroundStyle(.primary)
+                        }.buttonStyle(.plain).help("\(post.date.formatted(Date.FormatStyle(date: .complete, time: .shortened).locale(meterLocale)))\n\(post.text.prefix(500))\nVia x.noodl3.net · Keyword match, not confirmation of an account reset.")
+                        if announcements.hasUnread {
+                            Button { announcements.markRead() } label: {
+                                Image(systemName: "checkmark").font(.system(size: 9, weight: .medium))
+                                    .frame(width: 14, height: 14).contentShape(Rectangle())
+                            }.buttonStyle(.plain).foregroundStyle(.secondary)
+                                .help("Mark as seen").accessibilityLabel("Mark Tibo post as seen")
+                        }
+                    }
+                } else if announcements.unavailable {
+                    Text("Tibo posts unavailable").font(.system(size: 10)).foregroundStyle(.secondary)
+                        .help("The public RSS source x.noodl3.net could not be refreshed. Quota data is unaffected.")
+                }
+            }
 
             if let error = store.error {
                 Label(error, systemImage: "exclamationmark.triangle")
@@ -248,22 +337,16 @@ struct MeterPanel: View {
                 Text(store.resetPending ? "Reset unconfirmed. Stats paused." : "Data is out of date. Stats paused.")
                     .font(.system(size: 10)).foregroundStyle(.orange)
             }
-            HStack {
-                Text(budget == nil ? "" : "Uniform budget · period estimates")
-                Spacer(minLength: 3)
-                if let date = store.updatedAt { Text(date.formatted(Date.FormatStyle(date: .omitted, time: .shortened).locale(meterLocale))) }
-                Button { store.refresh() } label: {
-                    Image(systemName: "arrow.clockwise").frame(width: 14, height: 14)
-                }.buttonStyle(.plain).disabled(store.refreshing).help("Refresh now").accessibilityLabel("Refresh now")
-            }.font(.system(size: 9)).foregroundStyle(.secondary)
         }.padding(14).frame(width: 270).environment(\.locale, meterLocale)
     }
-    private func stat(_ label: String, _ value: String, prominent: Bool = false, warning: Bool = false) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 6) {
+    private func stat(_ label: String, _ value: String, prominent: Bool = false, warning: Bool = false,
+                      valueColor: Color? = nil) -> some View {
+        let color = warning ? Color.orange : (valueColor ?? Color.primary)
+        return HStack(alignment: .firstTextBaseline, spacing: 6) {
             Text(label).foregroundStyle(.secondary)
             Spacer(minLength: 2)
             Text(value).fontWeight(prominent ? .semibold : .regular)
-                .foregroundStyle(warning ? Color.orange : (prominent ? Color.accentColor : Color.primary))
+                .foregroundStyle(color)
                 .monospacedDigit()
         }.font(.system(size: 11)).fixedSize(horizontal: false, vertical: true)
     }
@@ -277,6 +360,7 @@ final class MeterDelegate: NSObject, NSApplicationDelegate {
                                          anchor: { [weak self] in self?.statusItem?.button?.window })
     private var pendingPanelOpen = false
     private var openAttempts = 0
+    private var appearanceObservation: NSKeyValueObservation?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         if let id = Bundle.main.bundleIdentifier,
@@ -290,16 +374,25 @@ final class MeterDelegate: NSObject, NSApplicationDelegate {
         statusItem.button?.action = #selector(togglePanel)
         statusItem.button?.font = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .regular)
         statusItem.button?.imagePosition = .imageLeading
+        appearanceObservation = statusItem.button?.observe(\.effectiveAppearance, options: [.new]) { [weak self] _, _ in
+            Task { @MainActor in self?.updateStatus() }
+        }
         store.onChange = { [weak self] in self?.updateStatus() }
         updateStatus()
         store.start()
-        requestPanelOpen()
+        store.updater.onChange = { [weak self] in self?.updateStatus() }
+        store.updater.start()
+        store.announcements.onChange = { [weak self] in self?.updateStatus() }
+        store.announcements.start()
+        let launchedAtLogin = NSAppleEventManager.shared().currentAppleEvent?
+            .paramDescriptor(forKeyword: keyAEPropData)?.enumCodeValue == keyAELaunchedAsLogInItem
+        if !launchedAtLogin { requestPanelOpen() }
     }
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         requestPanelOpen()
         return false
     }
-    func applicationWillTerminate(_ notification: Notification) { store.stop() }
+    func applicationWillTerminate(_ notification: Notification) { store.stop(); store.updater.stop(); store.announcements.stop() }
     @objc private func togglePanel() {
         if panel.isVisible {
             pendingPanelOpen = false
@@ -307,6 +400,7 @@ final class MeterDelegate: NSObject, NSApplicationDelegate {
         } else { requestPanelOpen() }
     }
     private func requestPanelOpen() {
+        store.login.refresh()
         guard !panel.isVisible else { return }
         pendingPanelOpen = true
         openAttempts = 0
@@ -330,42 +424,28 @@ final class MeterDelegate: NSObject, NSApplicationDelegate {
         guard let button = statusItem.button else { return }
         let entry = store.entry
         let used = entry?.window.usedPercent
-        var title = entry == nil ? (store.refreshing ? "…" : "—") : percentage(used)
-        if store.uncertain { title += " !" }
-        button.title = store.iconOnly ? "" : " " + title
-        button.image = ringImage(used: used, uncertain: store.uncertain)
+        button.title = store.uncertain && !store.iconOnly && entry != nil ? " !" : ""
+        button.image = StatusIndicator.image(used: used, uncertain: store.uncertain,
+                                 showPercentage: !store.iconOnly, refreshing: store.refreshing,
+                                 resetCount: store.statusResetCount,
+                                 appearance: button.effectiveAppearance,
+                                 updateAvailable: store.updater.availableRelease != nil,
+                                 unreadAnnouncement: store.announcements.hasUnread)
         button.toolTip = entry.map {
             "Codex · \($0.window.label) · \(percentage(used)) used\nReset: \(resetDate($0.window.resetsAt) ?? "unavailable")\(store.uncertain ? "\nData needs refreshing" : "")"
         } ?? "Codex Meter · usage limits unavailable"
+        button.toolTip = (button.toolTip ?? "Codex Meter") + "\nUsage limit resets: " + store.resetAvailabilityText
+        if let release = store.updater.availableRelease {
+            button.toolTip = (button.toolTip ?? "Codex Meter") + "\nUpdate available: " + release.version.text
+        }
+        if store.announcements.hasUnread {
+            button.toolTip = (button.toolTip ?? "Codex Meter") + "\nUnread Tibo post mentioning reset"
+        }
         button.setAccessibilityLabel(button.toolTip)
         panel.schedulePosition()
         if pendingPanelOpen { attemptPanelOpen() }
     }
-    private func ringImage(used: Double?, uncertain: Bool) -> NSImage {
-        let image = NSImage(size: NSSize(width: 12, height: 12), flipped: false) { _ in
-            let background = NSBezierPath(ovalIn: NSRect(x: 1.5, y: 1.5, width: 9, height: 9))
-            background.lineWidth = 1.5
-            NSColor.labelColor.withAlphaComponent(uncertain ? 0.45 : 0.22).setStroke()
-            background.stroke()
-            if let used, used > 0 {
-                let arc = NSBezierPath()
-                arc.appendArc(withCenter: NSPoint(x: 6, y: 6), radius: 4.5,
-                              startAngle: 90, endAngle: CGFloat(90 - min(100, max(0, used)) * 3.6), clockwise: true)
-                arc.lineWidth = 1.7
-                arc.lineCapStyle = .round
-                NSColor.labelColor.withAlphaComponent(uncertain ? 0.45 : 1).setStroke()
-                arc.stroke()
-            }
-            if uncertain {
-                let dot = NSBezierPath(ovalIn: NSRect(x: 4.5, y: 4.5, width: 3, height: 3))
-                NSColor.labelColor.setFill()
-                dot.fill()
-            }
-            return true
-        }
-        image.isTemplate = true
-        return image
-    }
+
 }
 
 #if !METER_TESTS
