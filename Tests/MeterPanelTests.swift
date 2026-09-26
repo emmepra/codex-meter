@@ -102,14 +102,13 @@ struct MeterPanelTests {
         defer { demoPreferences.removePersistentDomain(forName: "CodexMeter.SyntheticPreview") }
         let demoPost = ResetAnnouncement(id: "1", text: "Demo announcement: we will reset usage limits tomorrow for everyone. More details soon.", date: now)
         let demoAnnouncements = ResetAnnouncements(preferences: demoPreferences, latest: demoPost)
-        let demo = NSHostingView(rootView: MeterPanel(store: store, announcements: demoAnnouncements)
+        let demo = MeterPanel(store: store, announcements: demoAnnouncements, staticPreview: true)
             .environment(\.colorScheme, .dark)
-            .background(Color(nsColor: .windowBackgroundColor)))
-        demo.appearance = NSAppearance(named: .darkAqua)
-        demo.frame = NSRect(origin: .zero, size: demo.fittingSize)
-        demo.layoutSubtreeIfNeeded()
-        let demoBitmap = demo.bitmapImageRepForCachingDisplay(in: demo.bounds)!
-        demo.cacheDisplay(in: demo.bounds, to: demoBitmap)
+            .background(Color(red: 0.12, green: 0.12, blue: 0.12))
+        // Render SwiftUI directly at 4x instead of enlarging an offscreen view cache.
+        let renderer = ImageRenderer(content: demo)
+        renderer.scale = 4
+        let demoBitmap = NSBitmapImageRep(cgImage: renderer.cgImage!)
         try demoBitmap.representation(using: .png, properties: [:])!.write(to: URL(fileURLWithPath: ".build/readme-demo.png"))
         store.error = "Could not read usage limits. Try again shortly."
         try render("stale")

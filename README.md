@@ -11,9 +11,9 @@ A small native macOS menu bar app for checking Codex usage and pacing the quota 
 - **Stay up to date:** optional launch at login and quiet checks for new app releases.
 - **Lightweight:** AppKit + SwiftUI, no external app dependencies. The Codex reader runs only during refreshes.
 
-![Codex Meter menu bar panel with synthetic demonstration values](assets/codex-meter-demo.png)
+<img src="assets/codex-meter-demo.png" alt="Codex Meter menu bar panel with synthetic demonstration values" width="360">
 
-The preview shows version 0.5.1 with synthetic quota values and a fictional post, not actual account usage or a real statement by Tibo. Reproduce it with `./scripts/test-ui.sh` (`.build/readme-demo.png`).
+The preview shows version 0.5.1 with synthetic quota values and a fictional post, not actual account usage or a real statement by Tibo. The PNG is rendered directly at 4× resolution and displayed at a fixed width for crisp text. Reproduce it with `./scripts/test-ui.sh` (`.build/readme-demo.png`).
 
 This is an independent project, not affiliated with OpenAI.
 

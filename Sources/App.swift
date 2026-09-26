@@ -158,7 +158,10 @@ struct MeterPanel: View {
     @ObservedObject private var login: LoginPreference
     @ObservedObject private var announcements: ResetAnnouncements
 
-    init(store: MeterStore, announcements: ResetAnnouncements? = nil) {
+    private let staticPreview: Bool
+
+    init(store: MeterStore, announcements: ResetAnnouncements? = nil, staticPreview: Bool = false) {
+        self.staticPreview = staticPreview
         self.store = store
         updater = store.updater
         login = store.login
@@ -197,6 +200,10 @@ struct MeterPanel: View {
                 }.buttonStyle(.plain).disabled(store.refreshing)
                     .help(store.updatedAt.map { "Last updated: " + $0.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened).locale(meterLocale)) + "\nRefresh now" } ?? "Not updated yet. Refresh now")
                     .accessibilityLabel(store.refreshing ? "Refreshing" : "Refresh now")
+                if staticPreview {
+                    Image(systemName: "ellipsis").font(.system(size: 11, weight: .medium))
+                        .frame(width: 18, height: 14)
+                } else {
                 Menu {
                     Toggle("Ring only", isOn: $store.iconOnly)
                     Toggle("Launch at Login", isOn: Binding(get: { login.enabled }, set: { login.setEnabled($0) }))
@@ -238,6 +245,7 @@ struct MeterPanel: View {
                         .frame(width: 18, height: 14).contentShape(Rectangle())
                 }.menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize().help("Options")
                     .accessibilityLabel("Options")
+                }
             }
 
             if let entry = store.entry {
