@@ -308,6 +308,7 @@ struct MeterPanel: View {
                         Button { announcements.openLatest() } label: {
                             HStack(spacing: 4) {
                                 if announcements.hasUnread { Circle().fill(Color.orange).frame(width: 4, height: 4) }
+                                Text("𝕏").font(.system(size: 11)).accessibilityHidden(true)
                                 Text("Tibo · “reset”")
                                 if announcements.unavailable { Text("· cached").foregroundStyle(.secondary) }
                                 Spacer(minLength: 2)
