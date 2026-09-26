@@ -13,7 +13,7 @@ A small native macOS menu bar app for checking Codex usage and pacing the quota 
 
 ![Codex Meter menu bar panel with synthetic demonstration values](assets/codex-meter-demo.png)
 
-The preview shows the development version with synthetic quota values and a fictional post, not actual account usage or a real statement by Tibo. Reproduce it with `./scripts/test-ui.sh` (`.build/readme-demo.png`).
+The preview shows version 0.5.1 with synthetic quota values and a fictional post, not actual account usage or a real statement by Tibo. Reproduce it with `./scripts/test-ui.sh` (`.build/readme-demo.png`).
 
 This is an independent project, not affiliated with OpenAI.
 
@@ -65,7 +65,7 @@ The panel header shows the OpenAI mark beside Codex Meter. The Codex Meter title
 
 The panel shows **𝕏 Tibo** and the date of the newest matching post in the last seven days. It matches the standalone word **reset**, case-insensitively, after removing URLs, and checks the author and post link. Posts from other authors and reposts are ignored. A keyword match does **not** confirm a reset on your account.
 
-**In development — not included in 0.5.0:** a short excerpt appears below the author, with **reset** in bold and ellipses where context is omitted. It keeps whole words, uses up to 72 characters and wraps to at most two lines. For example, using synthetic text:
+**New in 0.5.1:** a short excerpt appears below the author, with **reset** in bold and ellipses where context is omitted. It keeps whole words, uses up to 72 characters and wraps to at most two lines. For example, using synthetic text:
 
 > … we will **reset** usage limits tomorrow …
 
