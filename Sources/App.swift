@@ -373,7 +373,7 @@ final class MeterDelegate: NSObject, NSApplicationDelegate {
                                          anchor: { [weak self] in self?.statusItem?.button?.window })
     private var pendingPanelOpen = false
     private var openAttempts = 0
-    private var appearanceObservation: NSKeyValueObservation?
+    private var appearanceObservation: StatusAppearanceObserver?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         if let id = Bundle.main.bundleIdentifier,
@@ -387,8 +387,10 @@ final class MeterDelegate: NSObject, NSApplicationDelegate {
         statusItem.button?.action = #selector(togglePanel)
         statusItem.button?.font = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .regular)
         statusItem.button?.imagePosition = .imageLeading
-        appearanceObservation = statusItem.button?.observe(\.effectiveAppearance, options: [.new]) { [weak self] _, _ in
-            Task { @MainActor in self?.updateStatus() }
+        if let button = statusItem.button {
+            appearanceObservation = StatusAppearanceObserver(button: button) { [weak self] in
+                self?.updateStatus()
+            }
         }
         store.onChange = { [weak self] in self?.updateStatus() }
         updateStatus()

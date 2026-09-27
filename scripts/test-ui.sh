@@ -16,3 +16,5 @@ xcrun swiftc -swift-version 5 -parse-as-library -D METER_TESTS -target arm64-app
   -module-cache-path .build/module-cache \
   Sources/*.swift Tests/MeterPanelTests.swift -o .build/meter-panel-tests
 .build/meter-panel-tests
+
+./scripts/test-status-appearance.sh
