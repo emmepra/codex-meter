@@ -1,5 +1,34 @@
 import AppKit
 
+/// Status-item snapshots temporarily change effectiveAppearance while drawing.
+/// Observe the settled appearance instead of feeding those changes back into
+/// another image assignment, which would trigger another snapshot indefinitely.
+@MainActor
+final class StatusAppearanceObserver {
+    private var observation: NSKeyValueObservation?
+    private var checkScheduled = false
+    private var appearanceName: NSAppearance.Name
+
+    init(button: NSStatusBarButton, onChange: @escaping () -> Void) {
+        appearanceName = button.effectiveAppearance.name
+        observation = button.observe(\.effectiveAppearance, options: [.new]) { [weak self, weak button] _, _ in
+            MainActor.assumeIsolated {
+                guard let self, !self.checkScheduled else { return }
+                self.checkScheduled = true
+                DispatchQueue.main.async { [weak self, weak button] in
+                    guard let self else { return }
+                    defer { self.checkScheduled = false }
+                    guard let button else { return }
+                    let currentName = button.effectiveAppearance.name
+                    guard currentName != self.appearanceName else { return }
+                    self.appearanceName = currentName
+                    onChange()
+                }
+            }
+        }
+    }
+}
+
 struct StatusIndicator {
     static func image(used: Double?, uncertain: Bool, showPercentage: Bool, refreshing: Bool, resetCount: Int?, appearance: NSAppearance, unreadAnnouncement: Bool = false) -> NSImage {
         let used = used.flatMap { $0.isFinite ? min(100, max(0, $0)) : nil }
