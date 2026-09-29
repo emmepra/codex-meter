@@ -175,7 +175,7 @@ struct MeterPanel: View {
     private var resetAvailabilityColor: Color {
         guard let count = store.snapshot?.availableResetCount else { return .secondary }
         if store.stale { return .orange }
-        return Color(nsColor: count > 1 ? .systemGreen : .systemRed)
+        return Color(nsColor: count > 0 ? .systemGreen : .systemRed)
     }
 
     var body: some View {
@@ -307,7 +307,7 @@ struct MeterPanel: View {
             Divider()
             stat("Usage limit resets", store.resetAvailabilityText,
                  valueColor: resetAvailabilityColor)
-                .help("Banked resets for the Codex CLI account. A fresh count above one is green; one or zero is red. Out-of-date counts stay orange. Availability does not mean a quota window is eligible. Redeem resets in Codex.")
+                .help("Banked resets for the Codex CLI account. A fresh positive count is green; zero is red. Out-of-date counts stay orange. Availability does not mean a quota window is eligible. Redeem resets in Codex.")
 
             if announcements.enabled {
                 if let post = announcements.latest,

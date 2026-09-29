@@ -107,6 +107,10 @@ struct MeterPanelTests {
         store.error = "Could not read usage limits. Try again shortly."
         try render("stale")
         store.error = nil
+        store.snapshot = try snapshot(#", "rateLimitResetCredits":{"availableCount":1}"#)
+        precondition(store.resetAvailabilityText == "1 available")
+        precondition(store.statusResetCount == 1)
+        try render("one")
         store.snapshot = try snapshot(#", "rateLimitResetCredits":{"availableCount":0}"#)
         precondition(store.resetAvailabilityText == "0 available")
         precondition(store.statusResetCount == 0)
