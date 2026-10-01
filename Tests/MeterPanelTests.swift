@@ -162,6 +162,7 @@ struct MeterPanelTests {
         try observeCredit(850, at: now.addingTimeInterval(-300))
         try observeCredit(840, at: now)
         precondition(store.creditInUse && store.creditNeededText == "Estimating…")
+        precondition(store.compactCreditNeededText == nil, "Pending estimates stay out of the compact panel")
         precondition(store.creditSpendLabel == "Observed spend" && store.creditSpentText == "10 cr")
         store.creditSpend = CreditSpendTracker()
         store.creditPace.reset()
@@ -173,6 +174,7 @@ struct MeterPanelTests {
         precondition(store.creditRateText == "120 cr/h")
         precondition(store.creditRunwayText == "≈7 h")
         precondition(store.creditSpentText == "60 cr" && store.creditNeededText == "≈120 cr")
+        precondition(store.compactCreditNeededText == "≈120 cr")
         try render("credits")
         let creditPreview = ImageRenderer(content: MeterPanel(store: store, staticPreview: true)
             .environment(\.colorScheme, .dark)
@@ -183,6 +185,7 @@ struct MeterPanelTests {
         store.error = "Synthetic failure"
         precondition(!store.creditInUse && store.creditRate == nil)
         precondition(store.creditSpentText == "60 cr · Out of date" && store.creditNeededText == "Unavailable")
+        precondition(store.compactCreditNeededText == nil)
         store.error = nil
         store.iconOnly = true
         precondition(store.creditInUse, "Ring-only display does not change observed credit activity")
@@ -231,6 +234,39 @@ struct MeterPanelTests {
         store.now = now.addingTimeInterval(3901)
         precondition(store.creditRate == nil && store.creditNeededText == "Estimating…",
                      "A confirmed exhausted reading starts fresh pace history after unknown quota")
+        // A pause must not erase cumulative spend or suppress a valid rolling average.
+        store.creditSpend = CreditSpendTracker()
+        store.creditPace.reset()
+        let pauseStart = now.addingTimeInterval(10_000)
+        let pauseReset = pauseStart.timeIntervalSince1970 + 7200
+        store.now = pauseStart
+        store.updatedAt = store.now
+        try observeCredit(1000, at: store.now, reset: pauseReset)
+        precondition(store.creditSpentText == "0 cr" && store.compactCreditNeededText == nil)
+        try render("credit-estimating")
+        for index in 1...6 {
+            store.now = pauseStart.addingTimeInterval(Double(index * 300))
+            store.updatedAt = store.now
+            try observeCredit(970, at: store.now, reset: pauseReset)
+        }
+        precondition(!store.creditInUse && store.creditRateText == "60 cr/h")
+        precondition(store.creditSpentText == "30 cr" && store.compactCreditNeededText == "≈90 cr",
+                     "Stable readings retain both observed spend and a positive 30-minute average")
+        try render("credit-recent-average")
+        for index in 7...12 {
+            store.now = pauseStart.addingTimeInterval(Double(index * 300))
+            store.updatedAt = store.now
+            try observeCredit(970, at: store.now, reset: pauseReset)
+        }
+        precondition(store.creditSpentText == "30 cr" && store.compactCreditNeededText == nil)
+        precondition(store.creditNeededText == "Awaiting balance updates",
+                     "A flat window is not evidence that no credits have been spent")
+        try render("credit-flat-window")
+        store.now = pauseStart.addingTimeInterval(3900)
+        store.updatedAt = store.now
+        try observeCredit(960, at: store.now, reset: pauseReset)
+        precondition(store.creditSpentText == "40 cr" && store.compactCreditNeededText != nil,
+                     "Resumed consumption continues the same counter and restores the estimate")
         print("Meter panel state and synthetic rendering tests passed")
     }
 }

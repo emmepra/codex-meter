@@ -28,8 +28,10 @@ struct CreditPace {
         return sampleAge >= 0 && sampleAge <= 600 && decreaseAge >= 0 && decreaseAge <= 600
     }
     func perHour(at now: Date) -> Double? {
-        guard hasRecentDecrease(at: now), samples.count >= 3,
+        guard scope != nil, samples.count >= 3,
               let first = samples.first, let last = samples.last else { return nil }
+        let sampleAge = now.timeIntervalSince(last.date)
+        guard sampleAge >= 0 && sampleAge <= 600 else { return nil }
         let elapsed = last.date.timeIntervalSince(first.date)
         guard elapsed >= 900, first.amount > last.amount else { return nil }
         let rate = (first.amount - last.amount) * 3600 / elapsed
