@@ -91,9 +91,9 @@ The app uses ad hoc signing for local use and is not notarized. Build output is 
 
 Gatekeeper may block the downloaded app because it has no Developer ID signature or notarization. If you trust the copy downloaded from this repository's release, first try opening it, then open **System Settings → Privacy & Security**. Find the blocked-app notice, choose **Open Anyway**, and confirm **Open** in the next prompt. See [Apple's guide to safely opening apps](https://support.apple.com/en-us/102445) for the current instructions.
 
-Codex Meter appears in the menu bar without a Dock icon. Click the small ring to open the panel; the used percentage is centered inside the ring. **Ring only** hides that number. The larger percentage in the panel is **remaining** quota. **Resets in** shows the reset countdown.
+Codex Meter appears in the menu bar without a Dock icon. Click the small ring to open the panel; the used percentage is centered inside the ring. **Ring only** hides that number. The panel shows **used** included quota, its remaining share and reset countdown, alongside credit balance when available. **Credits in use** requires recent observed balance consumption from fresh, scoped readings and an exhausted Codex quota window. Its small time estimate is secondary and waits for enough history. Expand **Details** for quota budgets and recent credit consumption; there is no separate credit view to switch to.
 
-**Usage limit resets** shows banked resets for the Codex CLI account. A fresh count above one is green; one or zero is red. Out-of-date counts remain orange, and **Unavailable** is distinct from zero.
+**Usage limit resets** shows banked resets for the Codex CLI account. A fresh positive count is green; zero is red. Out-of-date counts remain orange, and **Unavailable** is distinct from zero.
 
 The **Options** (`…`) menu contains:
 
@@ -103,7 +103,7 @@ The **Options** (`…`) menu contains:
 | Launch at Login | Enable or disable the native macOS login item |
 | Automatically Check for Updates | Check silently at launch and every six hours |
 | Check for Updates… | Check now and display the result |
-| Update to <version>… | Open the available release for manual installation |
+| Install <version>… | Open the native update window for the available release |
 | Open Repository | Open the project on GitHub |
 | Refresh | Read current usage |
 | Quit | Close Codex Meter |
@@ -145,7 +145,9 @@ If **Usage limit resets** shows **Unavailable**, the CLI/service did not return 
 
 ## Update
 
-Quit Codex Meter using **Options → Quit** before replacing the app.
+From **0.5.3**, choose **Options → Check for Updates…** or **Install <version>…** when shown. In the native update window, confirm download and installation; Sparkle verifies the signed update, replaces the app and relaunches it. Keep Meter in Applications. Your display preferences are preserved.
+
+**Versions 0.5.2 and earlier require one manual upgrade.** Quit Codex Meter using **Options → Quit** before replacing the app. The same manual procedure can be used if an in-app update is unavailable.
 
 For a downloaded installation, download the Apple Silicon ZIP from the [latest release](https://github.com/emmepra/codex-meter/releases/latest), extract it, and move the new **Codex Meter.app** into the same Applications folder, replacing the previous copy. Open the new app; macOS may ask you to confirm it again. Display preferences are preserved.
 
@@ -163,9 +165,9 @@ Codex CLI updates are separate. Use the package manager you originally chose: `b
 
 ### Compact menu bar and project links
 
-The menu bar shows the used quota as a number inside the ring (the percent sign is omitted for readability). Two independent corner dots surround the ring: green at top left for fresh positive reset availability, and amber at bottom right for an unread Tibo post mentioning **reset**. App updates do not light a dot. They can appear together. Missing, zero or stale reset counts never produce a green dot. Options shows **Install <version>…** when a release is available. The tooltip includes the exact count. Ring-only mode hides the number, retaining the reset and unread-post indicators.
+The menu bar shows the used quota as a number inside the ring (the percent sign is omitted for readability). Two independent corner dots surround the ring: green at top left for fresh positive reset availability, and amber at bottom right for an unread Tibo post mentioning **reset**. App updates do not light a dot. They can appear together. Missing, zero or stale reset counts never produce a green dot. Options shows **Install <version>…** when a release is available. Credits add no number or indicator to the menu bar; the tooltip includes the exact reset count, available credit metadata and a conditional time estimate during recent observed credit consumption. Ring-only mode hides the number, retaining the reset and unread-post indicators.
 
-The panel header shows the OpenAI mark beside Codex Meter. The Codex Meter title links to the repository; the refresh button is beside Options in the header, replacing itself with a spinner while loading. Hover for the last successful refresh date and time; there is no footer row. Budget values use the system primary text color for light and dark appearance. The app bundle includes a dedicated meter icon, also used in update dialogs.
+The panel header shows the OpenAI mark beside Codex Meter. The Codex Meter title links to the repository; the refresh button is beside Options in the header, replacing itself with a spinner while loading. A compact footer pairs the last successful refresh time with **Details**; hover for the full refresh date. Budget values use the system primary text color for light and dark appearance. The app bundle includes a dedicated meter icon, also used in update dialogs.
 
 **Automatically Check for Updates** is on by default. It checks the latest stable GitHub release at app launch and then at most every six hours while running, including after wake. Disable it in Options for manual-only checks. Automatic checks are silent, including network failures. **Check for Updates…** still checks immediately and displays the result. It sends no quota or account data. From version 0.5.3, **Check for Updates…** or **Install <version>…** opens the native Sparkle update window. Confirm the download and installation there; Sparkle verifies the signed feed and archive, replaces the app and relaunches it. Installation always requires your confirmation.
 

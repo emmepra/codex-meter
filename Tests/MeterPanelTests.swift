@@ -13,8 +13,9 @@ struct MeterPanelTests {
         precondition(postDateLabel(dateNow.addingTimeInterval(-172800), now: dateNow, calendar: dateCalendar) != "Yesterday")
         let store = MeterStore()
         let originalIconOnly = store.iconOnly
+        let originalSelectedID = store.selectedID
         store.iconOnly = false
-        defer { store.iconOnly = originalIconOnly }
+        defer { store.iconOnly = originalIconOnly; store.selectedID = originalSelectedID }
         let now = Date(timeIntervalSince1970: 1_800_000_000)
         store.now = now
         store.updatedAt = now
@@ -99,6 +100,8 @@ struct MeterPanelTests {
         defer { demoPreferences.removePersistentDomain(forName: "CodexMeter.SyntheticPreview") }
         let demoPost = ResetAnnouncement(id: "1", text: "Demo announcement: we will reset usage limits tomorrow for everyone. More details soon.", date: now)
         let demoAnnouncements = ResetAnnouncements(preferences: demoPreferences, latest: demoPost)
+        store.snapshot = try snapshot(#", "meterCreditScope":"synthetic", "rateLimitResetCredits":{"availableCount":1}"#,
+            quotaFields: #""rateLimits":{"primary":{"usedPercent":80,"windowDurationMins":10080,"resetsAt":1800259200},"credits":{"hasCredits":true,"unlimited":false,"balance":"840"}}"#)
         let demo = MeterPanel(store: store, announcements: demoAnnouncements, staticPreview: true)
             .environment(\.colorScheme, .dark)
             .background(Color(red: 0.12, green: 0.12, blue: 0.12))
@@ -130,13 +133,18 @@ struct MeterPanelTests {
         try render("no-window")
         store.snapshot = try snapshot(#", "meterCreditScope":"synthetic", "rateLimitResetCredits":{"availableCount":1}"#,
             quotaFields: #""rateLimits":{"primary":{"usedPercent":100,"windowDurationMins":300,"resetsAt":1800003600},"credits":{"hasCredits":true,"unlimited":false,"balance":"840"}}"#)
+        precondition(!store.creditInUse && store.creditEstimateText == nil, "Exhausted quota alone is not observed credit consumption")
+        store.creditPace.observe(850, scope: "synthetic", at: now.addingTimeInterval(-300))
+        store.creditPace.observe(840, scope: "synthetic", at: now)
+        precondition(store.creditInUse && store.creditEstimateText == "Estimating recent pace…")
+        store.creditPace.reset()
         store.creditPace.observe(900, scope: "synthetic", at: now.addingTimeInterval(-1800))
         for index in 1...6 {
             store.creditPace.observe(Double(900 - index * 10), scope: "synthetic", at: now.addingTimeInterval(Double(index * 300 - 1800)))
         }
-        precondition(store.statusCredits == "840 cr")
+        precondition(store.creditInUse)
         precondition(store.creditRateText == "120 cr/h")
-        precondition(store.creditRunwayText == "~7 h 0 min")
+        precondition(store.creditRunwayText == "≈7 h")
         try render("credits")
         let creditPreview = ImageRenderer(content: MeterPanel(store: store, staticPreview: true)
             .environment(\.colorScheme, .dark)
@@ -145,11 +153,24 @@ struct MeterPanelTests {
         let creditBitmap = NSBitmapImageRep(cgImage: creditPreview.cgImage!)
         try creditBitmap.representation(using: .png, properties: [:])!.write(to: URL(fileURLWithPath: ".build/credits-preview.png"))
         store.error = "Synthetic failure"
-        precondition(store.statusCredits == nil && store.creditRate == nil)
+        precondition(!store.creditInUse && store.creditRate == nil)
         store.error = nil
         store.iconOnly = true
-        precondition(store.statusCredits == nil)
+        precondition(store.creditInUse, "Ring-only display does not change observed credit activity")
         store.iconOnly = false
+        store.snapshot = try snapshot(#", "meterCreditScope":"synthetic""#,
+            quotaFields: #""rateLimits":{"primary":{"usedPercent":80,"resetsAt":1800003600},"credits":{"hasCredits":true,"unlimited":false,"balance":"840"}}"#)
+        precondition(!store.creditInUse && store.creditEstimateText == nil, "Available quota keeps the credit balance secondary")
+        store.snapshot = try snapshot("",
+            quotaFields: #""rateLimits":{"primary":{"usedPercent":100,"resetsAt":1800003600},"credits":{"hasCredits":true,"unlimited":false,"balance":"840"}}"#)
+        precondition(!store.creditInUse, "Unscoped credit balances cannot activate the observed-consumption cue")
+        store.selectedID = "codex/primary"
+        store.snapshot = try snapshot(#", "meterCreditScope":"synthetic""#,
+            quotaFields: #""rateLimits":{"primary":{"usedPercent":25,"resetsAt":1800003600},"secondary":{"usedPercent":100,"resetsAt":1799999999},"credits":{"hasCredits":true,"unlimited":false,"balance":"840"}}"#)
+        precondition(!store.resetPending && !store.creditInUse, "An unconfirmed exhausted window cannot activate credit consumption")
+        store.snapshot = try snapshot(#", "meterCreditScope":"synthetic""#,
+            quotaFields: #""rateLimits":{"primary":{"usedPercent":25,"resetsAt":1799999999},"secondary":{"usedPercent":100,"resetsAt":1800003600},"credits":{"hasCredits":true,"unlimited":false,"balance":"840"}}"#)
+        precondition(store.resetPending && store.creditInUse, "Credit consumption is independent of an unrelated selected window")
         print("Meter panel state and synthetic rendering tests passed")
     }
 }

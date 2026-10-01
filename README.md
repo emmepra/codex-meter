@@ -5,16 +5,16 @@
 A small native macOS menu bar app for checking Codex usage and pacing the quota you have left.
 
 - **At a glance:** a menu-bar ring with the consumed percentage inside, plus an optional ring-only mode.
-- **One click:** remaining quota, reset countdown and exact reset time.
-- **Credit balance:** remaining credits, recent consumption and estimated time to exhaustion.
-- **Plan your usage:** daily or hourly allowance, today's budget, average pace and estimated runway.
+- **One click:** used and remaining included quota, reset countdown and credit balance in one compact view.
+- **Credit pace:** a small estimate of how long credits would last at the recent observed consumption rate.
+- **Details when needed:** daily or hourly allowance, today's budget, average quota pace and recent credit consumption.
 - **Reset announcements:** a compact link to Tibo’s latest post mentioning **reset**, with an unread indicator.
 - **Stay up to date:** optional launch at login and quiet checks for new app releases.
 - **Lightweight:** AppKit + SwiftUI, Sparkle bundled for signed in-app updates. The Codex reader runs only during refreshes.
 
 <img src="assets/codex-meter-demo.png" alt="Codex Meter menu bar panel with synthetic demonstration values" width="360">
 
-The preview shows version 0.5.1 with synthetic quota values and a fictional post, not actual account usage or a real statement by Tibo. The PNG is rendered directly at 4× resolution and displayed at a fixed width for crisp text. Reproduce it with `./scripts/test-ui.sh` (`.build/readme-demo.png`).
+The preview shows the unified panel with synthetic quota and credit values and a fictional post, not actual account usage or a real statement by Tibo. The PNG is rendered directly at 4× resolution and displayed at a fixed width for crisp text. Reproduce it with `./scripts/test-ui.sh` (`.build/readme-demo.png`).
 
 This is an independent project, not affiliated with OpenAI.
 
@@ -46,7 +46,7 @@ Automatic checks show **Install <version>…** in Options when a newer release i
 
 ## Use
 
-Click the menu bar indicator to open the compact panel, anchored directly below the menu bar even when its content changes height. The ring shows **used quota**, with its percentage centered inside; **Ring only** hides that number. The larger percentage in the panel shows **remaining quota**. **Resets in** shows the time until the next reset.
+Click the menu bar indicator to open the compact panel, anchored directly below the menu bar even when its content changes height. The ring and the panel's large percentage both show **used quota**; **Ring only** hides the ring's number. The **Included quota** track shows consumption in the selected window, with remaining quota and the reset countdown underneath. Credit balance appears alongside this quota summary when the service supplies credit metadata. There is no separate credit view to switch to. **Details** expands locally to show quota budgets, average pace and recent credit consumption.
 
 The **Options** (`…`) menu contains **Ring only**, available quota windows, **Refresh**, **Check for Updates…**, **Open Repository** and **Quit**. Usage refreshes every three minutes and after wake; the arrow refreshes immediately. **Launch at Login** in Options enables the native macOS login item; it is off until you choose it. If macOS requires approval, use **Approve Launch at Login…**. Keep the app in Applications. Login launches stay in the menu bar without opening the panel.
 
@@ -54,19 +54,21 @@ The **Options** (`…`) menu contains **Ring only**, available quota windows, **
 
 ### Compact menu bar and project links
 
-The menu bar shows the used quota as a number inside the ring (the percent sign is omitted for readability). Two independent corner dots surround the ring: green at top left for fresh positive reset availability, and amber at bottom right for an unread Tibo post mentioning **reset**. App updates do not light a dot. They can appear together. Missing, zero or stale reset counts never produce a green dot. Options shows **Install <version>…** when a release is available. The tooltip includes the exact count. Ring-only mode hides the number, retaining the reset and unread-post indicators.
+The menu bar shows the used quota as a number inside the ring (the percent sign is omitted for readability). Two independent corner dots surround the ring: green at top left for fresh positive reset availability, and amber at bottom right for an unread Tibo post mentioning **reset**. App updates do not light a dot. They can appear together. Missing, zero or stale reset counts never produce a green dot. Options shows **Install <version>…** when a release is available. Credits do not add a number or indicator to the menu bar. The tooltip includes the exact reset count and available credit metadata, with a conditional estimate during recent observed credit consumption. Ring-only mode hides the number, retaining the reset and unread-post indicators.
 
-The panel header shows the OpenAI mark beside Codex Meter. The Codex Meter title links to the repository; the refresh button is beside Options in the header, replacing itself with a spinner while loading. Hover for the last successful refresh date and time; there is no footer row. Budget values use the system primary text color for light and dark appearance. The app bundle includes a dedicated meter icon, also used in update dialogs.
+The panel header shows the OpenAI mark beside Codex Meter. The Codex Meter title links to the repository; the refresh button is beside Options in the header, replacing itself with a spinner while loading. A compact footer pairs the last successful refresh time with **Details**; hover for the full refresh date. Budget values use the system primary text color for light and dark appearance. The app bundle includes a dedicated meter icon, also used in update dialogs.
 
 **Automatically Check for Updates** is on by default. It checks the latest stable GitHub release at app launch and then at most every six hours while running, including after wake. Disable it in Options for manual-only checks. Automatic checks are silent, including network failures. **Check for Updates…** still checks immediately and displays the result. It sends no quota or account data. From version 0.5.3, **Check for Updates…** or **Install <version>…** opens the native Sparkle update window. Confirm the download and installation there; Sparkle verifies the signed feed and archive, replaces the app and relaunches it. Installation always requires your confirmation.
 
 ### Credits
 
-When the service supplies credit metadata, the panel shows **Credits remaining** separately from included quota and banked resets. A numeric zero, **Unlimited**, **Unavailable** and **Out of date** are distinct states. When either Codex quota window is exhausted, a fresh available numeric balance also appears beside the menu-bar ring, such as **840 cr** or **1.2k cr**. The ring continues to show used quota. **Ring only** hides the appended balance; the tooltip retains full details. A 100% quota reading with available credits is not proof that a particular task was billed to credits.
+When the service supplies credit metadata, the same panel shows the available balance separately from included quota and banked resets. A numeric zero, **Unlimited**, **Unavailable** and **Out of date** are distinct states. Credits remain a balance, without a percentage: the CLI does not supply a reliable total for that calculation. The menu-bar ring continues to show used quota and never appends a credit balance.
 
-**Recent consumption** is the net balance decrease over up to 30 minutes of continuous readings, after at least 15 minutes and three samples. **At this pace** divides the remaining balance by that observed rate. It describes how long credits would last if the recent pace continued; it is not a per-chat ledger or a billing guarantee. Expirations or other balance adjustments can also lower the balance.
+**Credits in use** appears only when fresh readings belong to a known personal account, a Codex quota window is exhausted, and the balance has decreased recently. It signals observed balance consumption, not which task was billed; expirations or other adjustments can also lower the balance. An exhausted quota with available credits alone does not activate it. The balance stays visible when included quota is still available, without suggesting that credits are being used.
 
-The estimate starts with **Estimating…**, pauses after ten minutes without observed spend, and is unavailable after failed or stale reads. A balance increase, gap longer than ten minutes, missing numeric balance or change of personal account restarts observations. Samples are kept only while Meter runs, so restarting starts a new estimate. The CLI supplies account identity; Meter retains only an in-memory fingerprint and never saves email or credentials. Personal account scope requires an email and recognized individual plan. Workspace balances can still be shown, but pace estimates remain unavailable until a reliable workspace scope is exposed.
+In **Details**, **Recent consumption** is the net balance decrease over up to 30 minutes of continuous readings, after at least 15 minutes and three samples. During recent observed credit consumption, a small secondary estimate divides the remaining balance by that rate. It describes how long credits would last if the recent pace continued; it is not a per-chat ledger, a billing guarantee or a countdown of productive work. The tooltip includes the same conditional estimate.
+
+The estimate starts with **Estimating…** while recent consumption is observed but history is insufficient, disappears after ten minutes without observed spend, and is unavailable after failed or stale reads. A balance increase, gap longer than ten minutes, missing numeric balance or change of personal account restarts observations. Samples are kept only while Meter runs, so restarting starts a new estimate. The CLI supplies account identity; Meter retains only an in-memory fingerprint and never saves email or credentials. Personal account scope requires an email and recognized individual plan. Workspace balances can still be shown, but pace estimates remain unavailable until a reliable workspace scope is exposed.
 
 ### Reset posts from Tibo
 
@@ -85,6 +87,8 @@ The panel shows **𝕏 Tibo** and the date of the newest matching post in the la
 - **Control and storage:** disable **Check Tibo’s Reset Posts** to stop fetching and hide the row. Post contents and quota comparisons stay in memory; only the last-read post ID and the feature preference are saved.
 
 ### What the statistics mean
+
+These supporting statistics are in the panel's collapsible **Details** section.
 
 | In the app | Meaning |
 | --- | --- |
