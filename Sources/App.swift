@@ -63,6 +63,7 @@ final class MeterStore: ObservableObject {
     private var resetRequestedFor: Double?
     private let client = CodexClient()
     var creditPace = CreditPace()
+    var creditSpend = CreditSpendTracker()
     var creditBucket: RateLimitBucket? { snapshot?.buckets.first { $0.limitId == "codex" } }
     var credits: CreditBalance? { creditBucket?.credits }
     var creditBalanceText: String {
@@ -98,10 +99,43 @@ final class MeterStore: ObservableObject {
         return creditPace.hasRecentDecrease(at: now)
     }
     var creditBalanceLabel: String { creditInUse ? "Credits in use" : "Credits available" }
-    var creditEstimateText: String? {
-        guard creditInUse else { return nil }
-        guard creditRate != nil else { return "Estimating recent pace…" }
-        return creditRunwayText + " at your recent pace"
+    var creditPeriod: CreditSpendTracker.Period? {
+        guard snapshot?.creditScope != nil, credits?.amount != nil else { return nil }
+        return creditSpend.current
+    }
+    var creditSpendLabel: String {
+        creditPeriod?.isPartial == true ? "Observed spend" : "Since quota exhausted"
+    }
+    var creditSpentText: String {
+        guard let period = creditPeriod else { return "Unavailable" }
+        let value = creditAmount(period.observedSpend) + " cr"
+        return stale ? value + " · Out of date" : value
+    }
+    var creditsNeededUntilReset: Double? {
+        guard !stale, creditPeriod != nil,
+              let deadline = creditSpend.resetDeadline(at: now), let rate = creditRate else { return nil }
+        let estimate = rate * deadline.timeIntervalSince(now) / 3600
+        return estimate.isFinite && estimate >= 0 ? estimate : nil
+    }
+    var creditNeededText: String {
+        guard !stale, snapshot?.creditScope != nil else { return "Unavailable" }
+        let windows = snapshot?.windows.filter { $0.bucketId == "codex" } ?? []
+        guard !windows.isEmpty, windows.allSatisfy({ $0.window.usedPercent != nil }) else { return "Unavailable" }
+        guard creditSpend.resetDeadline(at: now) != nil else {
+            if windows.contains(where: { ($0.window.usedPercent ?? 0) >= 100 && ($0.window.resetsAt.map { $0 <= now.timeIntervalSince1970 } ?? false) }) {
+                return "Waiting for reset"
+            }
+            return "Reset time unavailable"
+        }
+        if let estimate = creditsNeededUntilReset { return "≈" + creditAmount(estimate) + " cr" }
+        return creditPace.idle(at: now) ? "No recent spend" : "Estimating…"
+    }
+    var creditSpendHelp: String {
+        guard let period = creditPeriod else { return "Credit observations unavailable." }
+        let date = period.startedAt.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened).locale(meterLocale))
+        return "Observed credit balance decreases since \(date). "
+            + (period.isPartial ? "Coverage is partial: earlier or unobserved intervals are not included. " : "Tracking began with the first observed quota-exhausted reading. ")
+            + "Includes account-wide changes, which can also be expiry or adjustments. Kept in memory while Meter runs."
     }
 
     var entry: UsageEntry? {
@@ -141,6 +175,23 @@ final class MeterStore: ObservableObject {
     }
     @objc private func woke() { now = Date(); refresh() }
     func stop() { refreshTimer?.invalidate(); clockTimer?.invalidate(); fetchTask?.cancel() }
+    func observeCredits(at date: Date) {
+        let previousStart = creditSpend.current?.startedAt
+        let wasPartial = creditSpend.current?.isPartial ?? false
+        creditSpend.observe(balance: credits?.amount, scope: snapshot?.creditScope,
+                            windows: snapshot?.windows ?? [], at: date)
+        if previousStart != creditSpend.current?.startedAt || (!wasPartial && creditSpend.current?.isPartial == true) {
+            creditPace.reset()
+        }
+        let codexWindows = snapshot?.windows.filter { $0.bucketId == "codex" } ?? []
+        guard !codexWindows.isEmpty, codexWindows.allSatisfy({ $0.window.usedPercent != nil }) else {
+            creditPace.reset()
+            return
+        }
+        if let scope = snapshot?.creditScope {
+            creditPace.observe(credits?.amount, scope: scope, at: date)
+        } else { creditPace.reset() }
+    }
     func refresh() {
         guard !refreshing else { return }
         refreshing = true
@@ -153,13 +204,12 @@ final class MeterStore: ObservableObject {
                 let receivedAt = Date()
                 updatedAt = receivedAt
                 error = nil
-                if let scope = snapshot?.creditScope {
-                    creditPace.observe(credits?.amount, scope: scope, at: receivedAt)
-                } else { creditPace.reset() }
+                observeCredits(at: receivedAt)
                 announcements.observeResetCount(snapshot?.availableResetCount, at: receivedAt)
             } catch {
                 guard !Task.isCancelled else { return }
                 creditPace.reset()
+                creditSpend.markUnavailable()
                 announcements.observeResetCount(nil)
                 self.error = (error as? CodexClientError)?.errorDescription ?? "Could not read usage limits. Try again shortly."
             }
@@ -335,9 +385,12 @@ struct MeterPanel: View {
                     }
                     .font(.system(size: 11))
                     .help("Account credit balance, separate from included quota and banked resets. ‘In use’ means a recent balance decrease was observed while a Codex quota window was exhausted; expiry or adjustments can also lower the balance.")
-                    if let estimate = store.creditEstimateText {
-                        Text(estimate).font(.system(size: 10)).foregroundStyle(.secondary).monospacedDigit()
-                            .help("Estimated time until the current balance runs out if the observed recent pace continues. This is not a billing guarantee. It pauses when inactive or out of date.")
+                    if store.creditPeriod != nil {
+                        stat(store.creditSpendLabel, store.creditSpentText)
+                            .help(store.creditSpendHelp)
+                        stat("Needed until reset", store.creditNeededText,
+                             warning: store.creditsNeededUntilReset.map { $0 > (store.credits?.amount ?? 0) } ?? false)
+                            .help("Estimated additional credits needed at your recent pace until all currently exhausted Codex windows reset. Uses the latest known blocking reset, independently of the window selected above. May exceed your current balance. Paused when reset time or pace is unknown; actual consumption may change.")
                     }
                 }
                 .padding(.top, 3)
@@ -411,6 +464,12 @@ struct MeterPanel: View {
                         stat("Recent consumption", store.creditRateText)
                             .help("Observed balance decrease over up to 30 minutes, after at least 15 minutes of readings. Includes account-wide activity. Additions or long gaps restart the estimate.")
                         stat("Estimate basis", store.creditRate != nil ? "Up to 30 min" : "Not enough recent data")
+                        stat("Credit runway", store.creditRunwayText)
+                            .help("Remaining balance divided by recent observed consumption. Estimated time until the balance runs out at that pace.")
+                        if let previous = store.creditSpend.previous {
+                            stat("Last period, observed", creditAmount(previous.observedSpend) + " cr")
+                                .help("Observed balance decreases from \(previous.startedAt.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened).locale(meterLocale))) until the last observed exhausted reading. \(previous.isPartial ? "Coverage was partial. " : "")Only retained for the current account while Meter runs.")
+                        }
                     }
                 }
             }
@@ -548,8 +607,9 @@ final class MeterDelegate: NSObject, NSApplicationDelegate {
         button.toolTip = (button.toolTip ?? "Codex Meter") + "\nUsage limit resets: " + store.resetAvailabilityText
         if store.credits != nil {
             button.toolTip = (button.toolTip ?? "Codex Meter") + "\n" + store.creditBalanceLabel + ": " + store.creditBalanceText
-            if let estimate = store.creditEstimateText {
-                button.toolTip = (button.toolTip ?? "Codex Meter") + "\n" + estimate
+            if store.creditPeriod != nil {
+                button.toolTip = (button.toolTip ?? "Codex Meter") + "\n" + store.creditSpendLabel + ": " + store.creditSpentText
+                    + "\nNeeded until reset: " + store.creditNeededText + (store.creditsNeededUntilReset != nil ? " at your recent pace" : "")
             }
         }
         if let release = store.updater.availableRelease {
