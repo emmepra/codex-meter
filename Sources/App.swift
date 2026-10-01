@@ -62,6 +62,35 @@ final class MeterStore: ObservableObject {
     private var fetchTask: Task<Void, Never>?
     private var resetRequestedFor: Double?
     private let client = CodexClient()
+    var creditPace = CreditPace()
+    var creditBucket: RateLimitBucket? { snapshot?.buckets.first { $0.limitId == "codex" } }
+    var credits: CreditBalance? { creditBucket?.credits }
+    var creditBalanceText: String {
+        guard let credits else { return "Unavailable" }
+        let text = credits.unlimited ? "Unlimited" : credits.amount.map { creditAmount($0) } ?? "Unavailable"
+        return stale && text != "Unavailable" ? text + " · Out of date" : text
+    }
+    var creditRate: Double? { stale ? nil : creditPace.perHour(at: now) }
+    var creditRateText: String {
+        if stale || snapshot?.creditScope == nil { return "Unavailable" }
+        if let rate = creditRate { return creditAmount(rate) + " cr/h" }
+        return creditPace.idle(at: now) ? "No recent spend" : "Estimating…"
+    }
+    var creditRunwayText: String {
+        guard !stale, let amount = credits?.amount else { return "—" }
+        if amount == 0 { return "Exhausted" }
+        guard let rate = creditRate else { return "—" }
+        let seconds = amount / rate * 3600
+        guard seconds.isFinite else { return "—" }
+        if seconds > 31_536_000 { return ">1 year" }
+        return "~" + remainingTime(now.timeIntervalSince1970 + seconds, now: now)
+    }
+    var statusCredits: String? {
+        guard !iconOnly, !stale, let amount = credits?.amount, credits?.hasCredits == true,
+              let bucket = creditBucket,
+              [bucket.primary?.usedPercent, bucket.secondary?.usedPercent].contains(where: { ($0 ?? 0) >= 100 }) else { return nil }
+        return compactCredits(amount) + " cr"
+    }
 
     var entry: UsageEntry? {
         if let selectedID, let selected = snapshot?.windows.first(where: { $0.id == selectedID }) {
@@ -112,9 +141,13 @@ final class MeterStore: ObservableObject {
                 let receivedAt = Date()
                 updatedAt = receivedAt
                 error = nil
+                if let scope = snapshot?.creditScope {
+                    creditPace.observe(credits?.amount, scope: scope, at: receivedAt)
+                } else { creditPace.reset() }
                 announcements.observeResetCount(snapshot?.availableResetCount, at: receivedAt)
             } catch {
                 guard !Task.isCancelled else { return }
+                creditPace.reset()
                 announcements.observeResetCount(nil)
                 self.error = (error as? CodexClientError)?.errorDescription ?? "Could not read usage limits. Try again shortly."
             }
@@ -123,6 +156,17 @@ final class MeterStore: ObservableObject {
             onChange?()
         }
     }
+}
+
+func creditAmount(_ value: Double) -> String {
+    if value > 0 && value < 0.1 { return "<0.1" }
+    return value.formatted(.number.locale(meterLocale).precision(.fractionLength(0...1)))
+}
+
+func compactCredits(_ value: Double) -> String {
+    if value >= 1_000_000 { return creditAmount(value / 1_000_000) + "m" }
+    if value >= 1_000 { return creditAmount(value / 1_000) + "k" }
+    return creditAmount(value)
 }
 
 func quotaAmount(_ value: Double) -> String {
@@ -282,7 +326,7 @@ struct MeterPanel: View {
                              budget.averagePerDay.map { quotaAmount(daily ? $0 : $0 / 24) } ?? "—")
                             .help("Estimated average since the start of the period: usage divided by elapsed time. The start is inferred from the reset and duration; this is not a record of daily usage.")
                         if budget.remainingPercent == 0 {
-                            stat("Quota used up", "Wait for reset", warning: true)
+                            stat("Quota used up", store.credits?.hasCredits == true ? "Credits available" : "Wait for reset", warning: true)
                         } else if let exhaustion = budget.projectedExhaustion,
                                   exhaustion.timeIntervalSince(store.now) < budget.remainingSeconds {
                             stat("Runway at this pace", remainingTime(exhaustion.timeIntervalSince1970, now: store.now), warning: true)
@@ -302,6 +346,20 @@ struct MeterPanel: View {
             } else {
                 Text(store.refreshing ? "Reading usage limits…" : "Usage limits unavailable")
                     .font(.system(size: 12)).foregroundStyle(.secondary).padding(.vertical, 8)
+            }
+
+            if store.credits != nil {
+                Divider()
+                VStack(spacing: 7) {
+                    stat("Credits remaining", store.creditBalanceText, prominent: true)
+                        .help("Account credit balance from Codex. Credits are separate from included quota and banked resets.")
+                    if store.credits?.amount != nil {
+                        stat("Recent consumption", store.creditRateText)
+                            .help("Observed balance decrease over up to 30 minutes, after at least 15 minutes of readings. Includes account-wide activity. Additions or long gaps restart the estimate.")
+                        stat("At this pace", store.creditRunwayText)
+                            .help("Estimated time until the current balance runs out if the recent pace continues. Paused when inactive or out of date.")
+                    }
+                }
             }
 
             Divider()
@@ -439,7 +497,7 @@ final class MeterDelegate: NSObject, NSApplicationDelegate {
         guard let button = statusItem.button else { return }
         let entry = store.entry
         let used = entry?.window.usedPercent
-        button.title = store.uncertain && !store.iconOnly && entry != nil ? " !" : ""
+        button.title = store.statusCredits.map { " " + $0 } ?? (store.uncertain && !store.iconOnly && entry != nil ? " !" : "")
         button.image = StatusIndicator.image(used: used, uncertain: store.uncertain,
                                  showPercentage: !store.iconOnly, refreshing: store.refreshing,
                                  resetCount: store.statusResetCount,
@@ -449,6 +507,10 @@ final class MeterDelegate: NSObject, NSApplicationDelegate {
             "Codex · \($0.window.label) · \(percentage(used)) used\nReset: \(resetDate($0.window.resetsAt) ?? "unavailable")\(store.uncertain ? "\nData needs refreshing" : "")"
         } ?? "Codex Meter · usage limits unavailable"
         button.toolTip = (button.toolTip ?? "Codex Meter") + "\nUsage limit resets: " + store.resetAvailabilityText
+        if store.credits != nil {
+            button.toolTip = (button.toolTip ?? "Codex Meter") + "\nCredits remaining: " + store.creditBalanceText
+                + "\nRecent consumption: " + store.creditRateText + "\nAt this pace: " + store.creditRunwayText
+        }
         if let release = store.updater.availableRelease {
             button.toolTip = (button.toolTip ?? "Codex Meter") + "\nUpdate available: " + release.version.text
         }

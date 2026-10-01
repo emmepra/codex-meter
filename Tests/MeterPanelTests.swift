@@ -12,6 +12,9 @@ struct MeterPanelTests {
         precondition(postDateLabel(dateNow.addingTimeInterval(-86400), now: dateNow, calendar: dateCalendar) == "Yesterday")
         precondition(postDateLabel(dateNow.addingTimeInterval(-172800), now: dateNow, calendar: dateCalendar) != "Yesterday")
         let store = MeterStore()
+        let originalIconOnly = store.iconOnly
+        store.iconOnly = false
+        defer { store.iconOnly = originalIconOnly }
         let now = Date(timeIntervalSince1970: 1_800_000_000)
         store.now = now
         store.updatedAt = now
@@ -125,6 +128,28 @@ struct MeterPanelTests {
         store.snapshot = try snapshot(#", "rateLimitResetCredits":{"availableCount":3}"#, quotaFields: #""rateLimits":null"#)
         precondition(store.entry == nil && store.resetAvailabilityText == "3 available")
         try render("no-window")
+        store.snapshot = try snapshot(#", "meterCreditScope":"synthetic", "rateLimitResetCredits":{"availableCount":1}"#,
+            quotaFields: #""rateLimits":{"primary":{"usedPercent":100,"windowDurationMins":300,"resetsAt":1800003600},"credits":{"hasCredits":true,"unlimited":false,"balance":"840"}}"#)
+        store.creditPace.observe(900, scope: "synthetic", at: now.addingTimeInterval(-1800))
+        for index in 1...6 {
+            store.creditPace.observe(Double(900 - index * 10), scope: "synthetic", at: now.addingTimeInterval(Double(index * 300 - 1800)))
+        }
+        precondition(store.statusCredits == "840 cr")
+        precondition(store.creditRateText == "120 cr/h")
+        precondition(store.creditRunwayText == "~7 h 0 min")
+        try render("credits")
+        let creditPreview = ImageRenderer(content: MeterPanel(store: store, staticPreview: true)
+            .environment(\.colorScheme, .dark)
+            .background(Color(red: 0.12, green: 0.12, blue: 0.12)))
+        creditPreview.scale = 4
+        let creditBitmap = NSBitmapImageRep(cgImage: creditPreview.cgImage!)
+        try creditBitmap.representation(using: .png, properties: [:])!.write(to: URL(fileURLWithPath: ".build/credits-preview.png"))
+        store.error = "Synthetic failure"
+        precondition(store.statusCredits == nil && store.creditRate == nil)
+        store.error = nil
+        store.iconOnly = true
+        precondition(store.statusCredits == nil)
+        store.iconOnly = false
         print("Meter panel state and synthetic rendering tests passed")
     }
 }

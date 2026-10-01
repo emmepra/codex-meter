@@ -14,7 +14,7 @@ APP_DIR="$BUILD_DIR/Codex Meter.app"
 mkdir -p "$APP_DIR/Contents/MacOS" "$APP_DIR/Contents/Resources" "$BUILD_DIR/module-cache"
 xcrun swiftc -swift-version 5 -O -parse-as-library -target arm64-apple-macosx13.0 \
   -module-cache-path "$BUILD_DIR/module-cache" \
-  Sources/UsageSnapshot.swift Sources/ComputeBudget.swift Sources/CodexClient.swift Sources/PanelPlacement.swift Sources/StatusPanel.swift Sources/StatusIndicator.swift Sources/ReleaseInfo.swift Sources/ReleaseChecker.swift Sources/SparkleInstaller.swift Sources/LoginPreference.swift Sources/ResetAnnouncements.swift Sources/App.swift \
+  Sources/UsageSnapshot.swift Sources/CreditPace.swift Sources/ComputeBudget.swift Sources/CodexClient.swift Sources/PanelPlacement.swift Sources/StatusPanel.swift Sources/StatusIndicator.swift Sources/ReleaseInfo.swift Sources/ReleaseChecker.swift Sources/SparkleInstaller.swift Sources/LoginPreference.swift Sources/ResetAnnouncements.swift Sources/App.swift \
   -F "$SPARKLE_DIR" -framework Sparkle -Xlinker -rpath -Xlinker @executable_path/../Frameworks \
   -o "$APP_DIR/Contents/MacOS/CodexMeter"
 mkdir -p "$APP_DIR/Contents/Frameworks"

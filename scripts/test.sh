@@ -34,3 +34,7 @@ xcrun swiftc -swift-version 5 -parse-as-library -D METER_TESTS -module-cache-pat
 xcrun swiftc -swift-version 5 -parse-as-library -D METER_TESTS -module-cache-path .build/module-cache \
   Sources/ReleaseInfo.swift Sources/ResetAnnouncements.swift Tests/ResetReadStateTests.swift -o .build/reset-read-tests
 .build/reset-read-tests
+
+xcrun swiftc -swift-version 5 -parse-as-library -D METER_TESTS -module-cache-path .build/module-cache \
+  Sources/UsageSnapshot.swift Sources/CreditPace.swift Tests/CreditPaceTests.swift -o .build/credit-pace-tests
+.build/credit-pace-tests
