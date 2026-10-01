@@ -42,3 +42,134 @@ struct CreditPace {
         return lastDecrease.map { now.timeIntervalSince($0) > 600 } ?? true
     }
 }
+
+/// Observed balance decreases while included Codex quota is exhausted.
+/// Only two aggregates are retained; gaps cannot be reconstructed as billing history.
+struct CreditSpendTracker {
+    struct Period {
+        let startedAt: Date
+        var observedSpend: Double
+        var isPartial: Bool
+        var endedAt: Date?
+    }
+
+    private struct Blocker {
+        let id: String
+        let reset: Double?
+    }
+
+    private(set) var current: Period?
+    private(set) var previous: Period?
+    private var scope: String?
+    private var lastObservation: Date?
+    private var lastBalance: Double?
+    private var wasAvailable = false
+    private var blockers: [Blocker] = []
+    private var deadline: Date?
+
+    mutating func observe(balance: Double?, scope: String?, windows: [UsageEntry], at date: Date) {
+        let previousObservation = lastObservation
+        guard let scope, !scope.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            self = CreditSpendTracker()
+            return
+        }
+        if self.scope != scope {
+            self = CreditSpendTracker()
+            self.scope = scope
+        }
+        // Identity changes clear account data even if the incoming timestamp is unusable.
+        guard date.timeIntervalSince1970.isFinite else { return }
+        if let previousObservation, date <= previousObservation { return }
+
+        let continuous = lastObservation.map { date.timeIntervalSince($0) <= 600 } ?? false
+        let knownAvailable = continuous && wasAvailable
+        lastObservation = date
+        let amount = balance.flatMap { $0.isFinite && $0 >= 0 ? $0 : nil }
+        let codex = windows.filter { $0.bucketId == "codex" }
+        let allKnown = !codex.isEmpty && codex.allSatisfy { $0.window.usedPercent != nil }
+        let exhausted = codex.filter { ($0.window.usedPercent ?? 0) >= 100 }
+
+        // An unknown window is not evidence that included quota recovered.
+        if exhausted.isEmpty {
+            if allKnown {
+                if !continuous || amount == nil { current?.isPartial = true }
+                close(at: date)
+                blockers.removeAll()
+                wasAvailable = amount != nil
+                lastBalance = amount
+                deadline = nil
+            } else {
+                markUnavailable()
+            }
+            return
+        }
+
+        let nextBlockers = exhausted.map { Blocker(id: $0.id, reset: $0.window.resetsAt) }
+        let hasPersistingBlocker = blockers.contains { blocker in
+            guard let next = nextBlockers.first(where: { $0.id == blocker.id }) else { return false }
+            guard let oldReset = blocker.reset, let newReset = next.reset else { return true }
+            // A future timestamp correction is not an observed or elapsed reset.
+            return !(oldReset <= date.timeIntervalSince1970 && newReset > oldReset)
+        }
+        let replacedBlockers = !blockers.isEmpty && !hasPersistingBlocker
+        let rolledOver = replacedBlockers && blockers.allSatisfy {
+            $0.reset.map { $0 <= date.timeIntervalSince1970 } ?? false
+        }
+        if current == nil || rolledOver {
+            if rolledOver {
+                current?.isPartial = true
+                close(at: date)
+            }
+            current = Period(startedAt: date, observedSpend: 0,
+                             isPartial: rolledOver || !knownAvailable || amount == nil,
+                             endedAt: nil)
+        } else if replacedBlockers {
+            // Separate exhausted endpoints do not prove quota stayed exhausted in between.
+            current?.isPartial = true
+        } else if let amount, let lastBalance, continuous {
+            if amount < lastBalance {
+                let total = (current?.observedSpend ?? 0) + (lastBalance - amount)
+                if total.isFinite { current?.observedSpend = total }
+                else { current?.isPartial = true }
+            } else if amount > lastBalance {
+                // Purchases or adjustments cannot undo already observed decreases.
+                current?.isPartial = true
+            }
+        } else {
+            current?.isPartial = true
+        }
+
+        wasAvailable = false
+        lastBalance = amount
+        blockers = nextBlockers
+        deadline = nil
+        if amount != nil && allKnown,
+           nextBlockers.allSatisfy({ $0.reset.map { $0 > date.timeIntervalSince1970 } ?? false }),
+           let latest = nextBlockers.compactMap(\.reset).max() {
+            deadline = Date(timeIntervalSince1970: latest)
+        }
+    }
+
+    mutating func markUnavailable() {
+        current?.isPartial = true
+        lastBalance = nil
+        wasAvailable = false
+        deadline = nil
+    }
+
+    func resetDeadline(at now: Date) -> Date? {
+        guard current != nil, let lastObservation, let deadline,
+              now.timeIntervalSince1970.isFinite,
+              now >= lastObservation, now.timeIntervalSince(lastObservation) <= 600,
+              blockers.allSatisfy({ $0.reset.map { $0 > now.timeIntervalSince1970 } ?? false }),
+              deadline > now else { return nil }
+        return deadline
+    }
+
+    private mutating func close(at date: Date) {
+        guard var completed = current else { return }
+        completed.endedAt = date
+        previous = completed
+        current = nil
+    }
+}
