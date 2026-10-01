@@ -75,7 +75,7 @@ final class MeterStore: ObservableObject {
     var creditRateText: String {
         if stale || snapshot?.creditScope == nil { return "Unavailable" }
         if let rate = creditRate { return creditAmount(rate) + " cr/h" }
-        return creditPace.idle(at: now) ? "No recent spend" : "Estimating…"
+        return creditPace.idle(at: now) ? "Awaiting balance updates" : "Estimating…"
     }
     var creditRunwayText: String {
         guard !stale, let amount = credits?.amount else { return "—" }
@@ -117,6 +117,10 @@ final class MeterStore: ObservableObject {
         let estimate = rate * deadline.timeIntervalSince(now) / 3600
         return estimate.isFinite && estimate >= 0 ? estimate : nil
     }
+    var compactCreditNeededText: String? {
+        guard let estimate = creditsNeededUntilReset else { return nil }
+        return "≈" + creditAmount(estimate) + " cr"
+    }
     var creditNeededText: String {
         guard !stale, snapshot?.creditScope != nil else { return "Unavailable" }
         let windows = snapshot?.windows.filter { $0.bucketId == "codex" } ?? []
@@ -127,8 +131,8 @@ final class MeterStore: ObservableObject {
             }
             return "Reset time unavailable"
         }
-        if let estimate = creditsNeededUntilReset { return "≈" + creditAmount(estimate) + " cr" }
-        return creditPace.idle(at: now) ? "No recent spend" : "Estimating…"
+        if let estimate = compactCreditNeededText { return estimate }
+        return creditPace.idle(at: now) ? "Awaiting balance updates" : "Estimating…"
     }
     var creditSpendHelp: String {
         guard let period = creditPeriod else { return "Credit observations unavailable." }
@@ -388,9 +392,11 @@ struct MeterPanel: View {
                     if store.creditPeriod != nil {
                         stat(store.creditSpendLabel, store.creditSpentText)
                             .help(store.creditSpendHelp)
-                        stat("Needed until reset", store.creditNeededText,
-                             warning: store.creditsNeededUntilReset.map { $0 > (store.credits?.amount ?? 0) } ?? false)
-                            .help("Estimated additional credits needed at your recent pace until all currently exhausted Codex windows reset. Uses the latest known blocking reset, independently of the window selected above. May exceed your current balance. Paused when reset time or pace is unknown; actual consumption may change.")
+                        if let estimate = store.compactCreditNeededText {
+                            stat("Needed until reset", estimate,
+                                 warning: store.creditsNeededUntilReset.map { $0 > (store.credits?.amount ?? 0) } ?? false)
+                                .help("Estimated additional credits needed at your recent pace until all currently exhausted Codex windows reset. Uses the latest known blocking reset, independently of the window selected above. May exceed your current balance. Based on up to 30 minutes of observed balance changes, including pauses; actual consumption may change.")
+                        }
                     }
                 }
                 .padding(.top, 3)
@@ -463,7 +469,12 @@ struct MeterPanel: View {
                     VStack(spacing: 7) {
                         stat("Recent consumption", store.creditRateText)
                             .help("Observed balance decrease over up to 30 minutes, after at least 15 minutes of readings. Includes account-wide activity. Additions or long gaps restart the estimate.")
-                        stat("Estimate basis", store.creditRate != nil ? "Up to 30 min" : "Not enough recent data")
+                        if store.creditPeriod != nil && store.compactCreditNeededText == nil {
+                            stat("Until reset estimate", store.creditNeededText)
+                                .help("The compact panel shows only numeric forecasts. A stable balance can mean no consumption or delayed balance updates; the observed spend total is preserved.")
+                        } else {
+                            stat("Estimate basis", store.creditRate != nil ? "Up to 30 min" : "Not enough recent data")
+                        }
                         stat("Credit runway", store.creditRunwayText)
                             .help("Remaining balance divided by recent observed consumption. Estimated time until the balance runs out at that pace.")
                         if let previous = store.creditSpend.previous {
@@ -609,7 +620,9 @@ final class MeterDelegate: NSObject, NSApplicationDelegate {
             button.toolTip = (button.toolTip ?? "Codex Meter") + "\n" + store.creditBalanceLabel + ": " + store.creditBalanceText
             if store.creditPeriod != nil {
                 button.toolTip = (button.toolTip ?? "Codex Meter") + "\n" + store.creditSpendLabel + ": " + store.creditSpentText
-                    + "\nNeeded until reset: " + store.creditNeededText + (store.creditsNeededUntilReset != nil ? " at your recent pace" : "")
+                if let estimate = store.compactCreditNeededText {
+                    button.toolTip = (button.toolTip ?? "Codex Meter") + "\nNeeded until reset: " + estimate + " at your recent pace"
+                }
             }
         }
         if let release = store.updater.availableRelease {

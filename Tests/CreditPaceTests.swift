@@ -14,7 +14,9 @@ import Foundation
         pace.observe(940, scope: "a", at: date(1200))
         pace.observe(940, scope: "a", at: date(1500))
         pace.observe(940, scope: "a", at: date(1800))
-        precondition(pace.perHour(at: date(1800)) == nil && pace.idle(at: date(1800)))
+        precondition(abs(pace.perHour(at: date(1800))! - 120) < 0.001 && pace.idle(at: date(1800)))
+        precondition(!pace.hasRecentDecrease(at: date(1800)),
+                     "The current-use indicator remains limited to decreases within ten minutes")
         precondition(pace.perHour(at: date(2500)) == nil)
         pace.observe(1200, scope: "a", at: date(2100))
         precondition(pace.perHour(at: date(2100)) == nil, "A recharge restarts observations")
@@ -24,6 +26,28 @@ import Foundation
         precondition(pace.perHour(at: date(3301)) == nil, "Long gaps restart observations")
         pace.observe(nil, scope: "b", at: date(3500))
         precondition(pace.perHour(at: date(3500)) == nil)
+
+        var rollingPace = CreditPace()
+        rollingPace.observe(1000, scope: "a", at: date(0))
+        rollingPace.observe(980, scope: "a", at: date(300))
+        rollingPace.observe(960, scope: "a", at: date(600))
+        rollingPace.observe(940, scope: "a", at: date(900))
+        for seconds in stride(from: 1200, through: 2400, by: 300) {
+            rollingPace.observe(940, scope: "a", at: date(Double(seconds)))
+        }
+        precondition(abs(rollingPace.perHour(at: date(2400))! - 40) < 0.001,
+                     "A positive thirty-minute net decrease remains a pace after twenty-five minutes of stable balance")
+        precondition(rollingPace.idle(at: date(2400)) && !rollingPace.hasRecentDecrease(at: date(2400)),
+                     "Recent-use detection is independent from the thirty-minute average")
+        precondition(rollingPace.perHour(at: date(3000)) != nil,
+                     "An established average remains available with a sample exactly ten minutes old")
+        precondition(rollingPace.perHour(at: date(3001)) == nil,
+                     "The rolling average still requires a fresh latest observation")
+        precondition(rollingPace.perHour(at: date(2399)) == nil,
+                     "Future samples cannot provide a rolling average")
+        rollingPace.observe(940, scope: "a", at: date(2700))
+        precondition(rollingPace.perHour(at: date(2700)) == nil && rollingPace.idle(at: date(2700)),
+                     "A completely flat rolling window has no numeric consumption rate")
         func read(_ credits: String) throws -> UsageSnapshot {
             try UsageSnapshot(data: Data(("{\"rateLimits\":{\"primary\":{\"usedPercent\":100},\"credits\":" + credits + "}}").utf8))
         }
@@ -287,5 +311,25 @@ import Foundation
         observe(&oldTimestampAccount, 80, 300, scope: nil)
         precondition(oldTimestampAccount.current == nil && oldTimestampAccount.previous == nil,
                      "An unknown scope clears account aggregates even on an older timestamp")
+
+        var idleSpend = CreditSpendTracker()
+        observe(&idleSpend, 1000, 0, used: 50)
+        observe(&idleSpend, 1000, 300)
+        observe(&idleSpend, 970, 600)
+        for seconds in stride(from: 900, through: 2400, by: 300) {
+            observe(&idleSpend, 970, Double(seconds))
+        }
+        spend(idleSpend.current?.observedSpend, 30, "Stable balance never clears cumulative observed spending")
+        precondition(idleSpend.current?.startedAt == date(300) && idleSpend.current?.isPartial == false,
+                     "A long continuously observed idle period preserves the exhausted episode")
+        observe(&idleSpend, 960, 2700)
+        spend(idleSpend.current?.observedSpend, 40, "Resumed spending adds to the same cumulative episode")
+        idleSpend.markUnavailable()
+        observe(&idleSpend, 900, 3000)
+        spend(idleSpend.current?.observedSpend, 40, "An error preserves the sum and skips its unknown interval")
+        observe(&idleSpend, 890, 3300)
+        spend(idleSpend.current?.observedSpend, 50, "Observed spending resumes after an error baseline")
+        precondition(idleSpend.current?.startedAt == date(300) && idleSpend.current?.isPartial == true,
+                     "Idle, resumption and errors never replace the known cumulative aggregate")
     }
 }
