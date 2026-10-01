@@ -83,13 +83,25 @@ final class MeterStore: ObservableObject {
         let seconds = amount / rate * 3600
         guard seconds.isFinite else { return "—" }
         if seconds > 31_536_000 { return ">1 year" }
-        return "~" + remainingTime(now.timeIntervalSince1970 + seconds, now: now)
+        let duration = remainingTime(now.timeIntervalSince1970 + seconds, now: now)
+            .replacingOccurrences(of: " 0 min", with: "")
+            .replacingOccurrences(of: " 0 h", with: "")
+        return "≈" + duration
     }
-    var statusCredits: String? {
-        guard !iconOnly, !stale, let amount = credits?.amount, credits?.hasCredits == true,
+    var creditInUse: Bool {
+        guard !stale, snapshot?.creditScope != nil,
+              let amount = credits?.amount, amount > 0, credits?.hasCredits == true,
               let bucket = creditBucket,
-              [bucket.primary?.usedPercent, bucket.secondary?.usedPercent].contains(where: { ($0 ?? 0) >= 100 }) else { return nil }
-        return compactCredits(amount) + " cr"
+              [bucket.primary, bucket.secondary].compactMap({ $0 }).contains(where: {
+                  ($0.usedPercent ?? 0) >= 100 && ($0.resetsAt.map { $0 > now.timeIntervalSince1970 } ?? true)
+              }) else { return false }
+        return creditPace.hasRecentDecrease(at: now)
+    }
+    var creditBalanceLabel: String { creditInUse ? "Credits in use" : "Credits available" }
+    var creditEstimateText: String? {
+        guard creditInUse else { return nil }
+        guard creditRate != nil else { return "Estimating recent pace…" }
+        return creditRunwayText + " at your recent pace"
     }
 
     var entry: UsageEntry? {
@@ -163,12 +175,6 @@ func creditAmount(_ value: Double) -> String {
     return value.formatted(.number.locale(meterLocale).precision(.fractionLength(0...1)))
 }
 
-func compactCredits(_ value: Double) -> String {
-    if value >= 1_000_000 { return creditAmount(value / 1_000_000) + "m" }
-    if value >= 1_000 { return creditAmount(value / 1_000) + "k" }
-    return creditAmount(value)
-}
-
 func quotaAmount(_ value: Double) -> String {
     if value > 0 && value < 0.1 { return "<0.1%" }
     return value.formatted(.number.locale(meterLocale).precision(.fractionLength(0...1))) + "%"
@@ -191,7 +197,7 @@ struct ConsumptionTrack: View {
                 }
             }
         }.frame(height: 4).opacity(faded ? 0.4 : 1)
-            .help("The bar shows usage. The marker shows how much quota you would have used at a uniform pace throughout the period.")
+            .help(elapsed == nil ? "The bar shows used quota in the selected period." : "The bar shows usage. The marker shows how much quota you would have used at a uniform pace throughout the period.")
             .accessibilityLabel("Used \(percentage(used))")
     }
 }
@@ -203,6 +209,7 @@ struct MeterPanel: View {
     @ObservedObject private var announcements: ResetAnnouncements
 
     private let staticPreview: Bool
+    @State private var showingDetails = false
 
     init(store: MeterStore, announcements: ResetAnnouncements? = nil, staticPreview: Bool = false) {
         self.staticPreview = staticPreview
@@ -294,54 +301,23 @@ struct MeterPanel: View {
 
             if let entry = store.entry {
                 VStack(alignment: .leading, spacing: 8) {
-                    HStack(alignment: .firstTextBaseline, spacing: 4) {
-                        Text(percentage(entry.window.usedPercent.map { 100 - $0 }))
-                            .font(.system(size: 24, weight: .semibold, design: .rounded)).monospacedDigit()
-                        Text("remaining").font(.system(size: 11)).foregroundStyle(.secondary)
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        Text(entry.bucketId == "codex" ? "Included quota" : "\(entry.bucketName) quota")
+                            .font(.system(size: 11))
                         Spacer()
-                        Text("\(percentage(entry.window.usedPercent)) used")
+                        Text(percentage(entry.window.usedPercent))
+                            .font(.system(size: 21, weight: .semibold, design: .rounded)).monospacedDigit()
+                        Text("used")
                             .font(.system(size: 10)).foregroundStyle(.secondary).monospacedDigit()
                     }.opacity(store.uncertain ? 0.55 : 1)
-                    ConsumptionTrack(used: entry.window.usedPercent, elapsed: budget?.elapsedFraction, faded: store.uncertain)
-                    HStack(spacing: 3) {
-                        Text(entry.window.resetsAt == nil ? "Reset time unavailable" : (store.resetPending ? "Reset unconfirmed" : "Resets in \(remainingTime(entry.window.resetsAt, now: store.now))"))
+                    ConsumptionTrack(used: entry.window.usedPercent, elapsed: nil, faded: store.uncertain)
+                    HStack(spacing: 6) {
+                        Text(entry.window.usedPercent == 100 ? "Quota exhausted" : "\(percentage(entry.window.usedPercent.map { 100 - $0 })) remaining")
                         Spacer(minLength: 2)
-                        if let date = resetDate(entry.window.resetsAt) { Text(date).foregroundStyle(.secondary) }
-                    }.font(.system(size: 10)).lineLimit(1)
-                }
-                if let budget {
-                    Divider()
-                    VStack(spacing: 7) {
-                        stat(daily ? "Daily budget" : "Hourly budget",
-                             quotaAmount(daily ? budget.budgetPerDay : budget.budgetPerHour),
-                             prominent: true)
-                            .help("Remaining quota divided by time until reset. Percentage points of the total quota available every \(daily ? "24 hours" : "hour"), starting now.")
-                        if let endOfDay = Calendar.current.dateInterval(of: .day, for: store.now)?.end,
-                           endOfDay.timeIntervalSince(store.now) < budget.remainingSeconds {
-                            let todayBudget = budget.remainingPercent * endOfDay.timeIntervalSince(store.now) / budget.remainingSeconds
-                            stat("Today, from now", quotaAmount(todayBudget))
-                                .help("Quota available from now until midnight at the budgeted pace.")
-                        }
-                        stat(daily ? "Average / day" : "Average / hour",
-                             budget.averagePerDay.map { quotaAmount(daily ? $0 : $0 / 24) } ?? "—")
-                            .help("Estimated average since the start of the period: usage divided by elapsed time. The start is inferred from the reset and duration; this is not a record of daily usage.")
-                        if budget.remainingPercent == 0 {
-                            stat("Quota used up", store.credits?.hasCredits == true ? "Credits available" : "Wait for reset", warning: true)
-                        } else if let exhaustion = budget.projectedExhaustion,
-                                  exhaustion.timeIntervalSince(store.now) < budget.remainingSeconds {
-                            stat("Runway at this pace", remainingTime(exhaustion.timeIntervalSince1970, now: store.now), warning: true)
-                                .help("Estimate at the average pace since the start of the period. Future usage may change.")
-                        } else if let remaining = budget.projectedRemainingAtReset {
-                            stat("Projected at reset", "\(quotaAmount(remaining)) remaining")
-                                .help("Quota that would remain at reset if you kept the average pace since the start of the period.")
-                        } else {
-                            stat("Pace estimate", "Not enough data")
-                        }
+                        Text(entry.window.resetsAt == nil ? "Reset time unavailable" : (store.resetPending ? "Reset unconfirmed" : "Resets in \(remainingTime(entry.window.resetsAt, now: store.now))"))
+                            .help(resetDate(entry.window.resetsAt).map { "Scheduled reset: " + $0 } ?? "Reset time unavailable")
                     }
-                } else if !store.uncertain {
-                    Divider()
-                    Text("Stats require known quota and reset time.")
-                        .font(.system(size: 10)).foregroundStyle(.secondary)
+                    .font(.system(size: 10)).foregroundStyle(.secondary).lineLimit(1)
                 }
             } else {
                 Text(store.refreshing ? "Reading usage limits…" : "Usage limits unavailable")
@@ -349,17 +325,22 @@ struct MeterPanel: View {
             }
 
             if store.credits != nil {
-                Divider()
-                VStack(spacing: 7) {
-                    stat("Credits remaining", store.creditBalanceText, prominent: true)
-                        .help("Account credit balance from Codex. Credits are separate from included quota and banked resets.")
-                    if store.credits?.amount != nil {
-                        stat("Recent consumption", store.creditRateText)
-                            .help("Observed balance decrease over up to 30 minutes, after at least 15 minutes of readings. Includes account-wide activity. Additions or long gaps restart the estimate.")
-                        stat("At this pace", store.creditRunwayText)
-                            .help("Estimated time until the current balance runs out if the recent pace continues. Paused when inactive or out of date.")
+                VStack(alignment: .leading, spacing: 5) {
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        Text(store.creditBalanceLabel)
+                            .fontWeight(store.creditInUse ? .semibold : .regular)
+                            .foregroundStyle(store.creditInUse ? Color.primary : .secondary)
+                        Spacer(minLength: 2)
+                        Text(store.creditBalanceText).font(.system(size: 15, weight: .medium)).monospacedDigit()
+                    }
+                    .font(.system(size: 11))
+                    .help("Account credit balance, separate from included quota and banked resets. ‘In use’ means a recent balance decrease was observed while a Codex quota window was exhausted; expiry or adjustments can also lower the balance.")
+                    if let estimate = store.creditEstimateText {
+                        Text(estimate).font(.system(size: 10)).foregroundStyle(.secondary).monospacedDigit()
+                            .help("Estimated time until the current balance runs out if the observed recent pace continues. This is not a billing guarantee. It pauses when inactive or out of date.")
                     }
                 }
+                .padding(.top, 3)
             }
 
             Divider()
@@ -408,7 +389,65 @@ struct MeterPanel: View {
                 Text(store.resetPending ? "Reset unconfirmed. Stats paused." : "Data is out of date. Stats paused.")
                     .font(.system(size: 10)).foregroundStyle(.orange)
             }
+            HStack {
+                Text(store.updatedAt.map { "Updated " + $0.formatted(.dateTime.locale(meterLocale).hour().minute()) } ?? "Not updated yet")
+                    .help(store.updatedAt.map { $0.formatted(Date.FormatStyle(date: .complete, time: .shortened).locale(meterLocale)) } ?? "No successful refresh yet")
+                Spacer()
+                Button { showingDetails.toggle() } label: {
+                    HStack(spacing: 3) {
+                        Text("Details")
+                        Image(systemName: showingDetails ? "chevron.up" : "chevron.down").font(.system(size: 8))
+                    }.contentShape(Rectangle())
+                }.buttonStyle(.plain)
+                    .accessibilityLabel(showingDetails ? "Hide usage details" : "Show usage details")
+                    .help("Quota budget and recent credit consumption")
+            }.font(.system(size: 10)).foregroundStyle(.secondary)
+            if showingDetails {
+                Divider()
+                quotaDetails
+                if store.credits?.amount != nil {
+                    if budget != nil { Divider() }
+                    VStack(spacing: 7) {
+                        stat("Recent consumption", store.creditRateText)
+                            .help("Observed balance decrease over up to 30 minutes, after at least 15 minutes of readings. Includes account-wide activity. Additions or long gaps restart the estimate.")
+                        stat("Estimate basis", store.creditRate != nil ? "Up to 30 min" : "Not enough recent data")
+                    }
+                }
+            }
         }.padding(14).frame(width: 270).environment(\.locale, meterLocale)
+    }
+    @ViewBuilder private var quotaDetails: some View {
+        if let budget {
+            VStack(spacing: 7) {
+                stat(daily ? "Daily budget" : "Hourly budget",
+                     quotaAmount(daily ? budget.budgetPerDay : budget.budgetPerHour), prominent: true)
+                    .help("Remaining quota divided by time until reset. Percentage points of the total quota available every \(daily ? "24 hours" : "hour"), starting now.")
+                if let endOfDay = Calendar.current.dateInterval(of: .day, for: store.now)?.end,
+                   endOfDay.timeIntervalSince(store.now) < budget.remainingSeconds {
+                    let todayBudget = budget.remainingPercent * endOfDay.timeIntervalSince(store.now) / budget.remainingSeconds
+                    stat("Today, from now", quotaAmount(todayBudget))
+                        .help("Quota available from now until midnight at the budgeted pace.")
+                }
+                stat(daily ? "Average / day" : "Average / hour",
+                     budget.averagePerDay.map { quotaAmount(daily ? $0 : $0 / 24) } ?? "—")
+                    .help("Estimated average since the start of the period: usage divided by elapsed time. The start is inferred from the reset and duration; this is not a record of daily usage.")
+                if budget.remainingPercent == 0 {
+                    stat("Quota used up", store.credits?.hasCredits == true ? "Credits available" : "Wait for reset", warning: true)
+                } else if let exhaustion = budget.projectedExhaustion,
+                          exhaustion.timeIntervalSince(store.now) < budget.remainingSeconds {
+                    stat("Runway at this pace", remainingTime(exhaustion.timeIntervalSince1970, now: store.now), warning: true)
+                        .help("Estimate at the average pace since the start of the period. Future usage may change.")
+                } else if let remaining = budget.projectedRemainingAtReset {
+                    stat("Projected at reset", "\(quotaAmount(remaining)) remaining")
+                        .help("Quota that would remain at reset if you kept the average pace since the start of the period.")
+                } else {
+                    stat("Pace estimate", "Not enough data")
+                }
+            }
+        } else {
+            Text(store.uncertain ? "Quota stats paused until a fresh read." : "Stats require known quota and reset time.")
+                .font(.system(size: 10)).foregroundStyle(.secondary)
+        }
     }
     private func stat(_ label: String, _ value: String, prominent: Bool = false, warning: Bool = false,
                       valueColor: Color? = nil) -> some View {
@@ -497,7 +536,7 @@ final class MeterDelegate: NSObject, NSApplicationDelegate {
         guard let button = statusItem.button else { return }
         let entry = store.entry
         let used = entry?.window.usedPercent
-        button.title = store.statusCredits.map { " " + $0 } ?? (store.uncertain && !store.iconOnly && entry != nil ? " !" : "")
+        button.title = store.uncertain && !store.iconOnly && entry != nil ? " !" : ""
         button.image = StatusIndicator.image(used: used, uncertain: store.uncertain,
                                  showPercentage: !store.iconOnly, refreshing: store.refreshing,
                                  resetCount: store.statusResetCount,
@@ -508,8 +547,10 @@ final class MeterDelegate: NSObject, NSApplicationDelegate {
         } ?? "Codex Meter · usage limits unavailable"
         button.toolTip = (button.toolTip ?? "Codex Meter") + "\nUsage limit resets: " + store.resetAvailabilityText
         if store.credits != nil {
-            button.toolTip = (button.toolTip ?? "Codex Meter") + "\nCredits remaining: " + store.creditBalanceText
-                + "\nRecent consumption: " + store.creditRateText + "\nAt this pace: " + store.creditRunwayText
+            button.toolTip = (button.toolTip ?? "Codex Meter") + "\n" + store.creditBalanceLabel + ": " + store.creditBalanceText
+            if let estimate = store.creditEstimateText {
+                button.toolTip = (button.toolTip ?? "Codex Meter") + "\n" + estimate
+            }
         }
         if let release = store.updater.availableRelease {
             button.toolTip = (button.toolTip ?? "Codex Meter") + "\nUpdate available: " + release.version.text

@@ -20,10 +20,16 @@ struct CreditPace {
         samples.append(Sample(date: date, amount: amount))
         samples.removeAll { date.timeIntervalSince($0.date) > 1800 }
     }
+    /// A recent balance decrease is useful before there is enough history for a pace estimate.
+    func hasRecentDecrease(at now: Date) -> Bool {
+        guard scope != nil, let last = samples.last, let lastDecrease else { return false }
+        let sampleAge = now.timeIntervalSince(last.date)
+        let decreaseAge = now.timeIntervalSince(lastDecrease)
+        return sampleAge >= 0 && sampleAge <= 600 && decreaseAge >= 0 && decreaseAge <= 600
+    }
     func perHour(at now: Date) -> Double? {
-        guard samples.count >= 3, let first = samples.first, let last = samples.last,
-              now.timeIntervalSince(last.date) >= 0, now.timeIntervalSince(last.date) <= 600,
-              let lastDecrease, now.timeIntervalSince(lastDecrease) <= 600 else { return nil }
+        guard hasRecentDecrease(at: now), samples.count >= 3,
+              let first = samples.first, let last = samples.last else { return nil }
         let elapsed = last.date.timeIntervalSince(first.date)
         guard elapsed >= 900, first.amount > last.amount else { return nil }
         let rate = (first.amount - last.amount) * 3600 / elapsed
