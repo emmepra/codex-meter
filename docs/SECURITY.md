@@ -20,3 +20,7 @@ The offline regression suite passed. A scan of tracked working-tree files found 
 ## In-app updater verification — 0.5.3
 
 An isolated app copy with a separate bundle identifier was updated from fixture version 0.5.2 to 0.5.3 using the production Sparkle integration and a localhost feed signed with the project key. The native Install Update and Install and Relaunch flow completed; the replaced bundle version and relaunched process were checked. Changing the signed feed's title without re-signing produced Sparkle's invalid-signature error and cancelled the update. The localhost URL and transport exception exist only in the ignored test fixture, never in the production bundle. Installation requiring administrator authorization and a translocated/read-only app were not exercised.
+
+## Credit observations
+
+Credit monitoring uses the existing local CLI process and read-only `account/read` and `account/rateLimits/read` methods. The app retains a fingerprint of a recognized personal account and up to 30 minutes of numeric balance samples only in memory. No email, credential, raw response or sample history is saved or sent to Meter services. Workspace pace estimation is disabled when a reliable billing scope is unavailable. A balance decrease is an observation, not guaranteed task-level spend: expiry or service adjustments can also affect it.

@@ -29,9 +29,16 @@ import Darwin
               case "$task_mode" in
                 error) printf '%s\n' '{"id":2,"error":{"code":-1,"message":"not authenticated"}}' ;;
                 malformed) printf '%s\n' 'unexpected text' ;;
-                *) printf '%s\n' '{"method":"irrelevant","params":{}}' '{"id":2,"result":{"rateLimits":{"primary":{"usedPercent":32}},"rateLimitResetCredits":{"availableCount":2}}}' ;;
+                *) printf '%s\n' '{"method":"irrelevant","params":{}}' '{"id":2,"result":{"rateLimits":{"primary":{"usedPercent":32},"credits":{"hasCredits":true,"unlimited":false,"balance":"840"}},"rateLimitResetCredits":{"availableCount":2}}}' ;;
               esac
               ;;
+            *'account'*'read'*)
+              if [ "$task_mode" = no-scope ]; then
+                printf '%s\n' '{"id":3,"error":{"code":-1,"message":"unsupported method"}}'
+              else
+                printf '%s\n' '{"id":3,"result":{"account":{"type":"chatgpt","email":"fixture@example.invalid","planType":"pro"}}}'
+              fi ;;
+
           esac
         done
         """#
@@ -69,13 +76,16 @@ import Darwin
             precondition(kill(pid, 0) != 0, "Child process still alive")
         }
 
-        for scenario in ["ok", "error", "malformed", "disconnect", "timeout"] {
+        for scenario in ["ok", "no-scope", "error", "malformed", "disconnect", "timeout"] {
             try setMode(scenario)
             do {
                 let data = try await CodexClient(executableURL: fixture, timeout: 0.7).readLimits()
-                precondition(scenario == "ok", "Unexpected success for \(scenario)")
+                precondition(scenario == "ok" || scenario == "no-scope", "Unexpected success for \(scenario)")
                 let object = try JSONSerialization.jsonObject(with: data) as! [String: Any]
+                precondition(scenario == "no-scope" ? object["meterCreditScope"] == nil : (object["meterCreditScope"] as? String)?.count == 64)
+                precondition(!String(decoding: data, as: UTF8.self).contains("fixture@example.invalid"))
                 let limits = object["rateLimits"] as! [String: Any]
+                precondition((limits["credits"] as? [String: Any])?["balance"] as? String == "840")
                 let primary = limits["primary"] as! [String: Any]
                 precondition(primary["usedPercent"] as? Int == 32)
                 let resets = object["rateLimitResetCredits"] as! [String: Any]

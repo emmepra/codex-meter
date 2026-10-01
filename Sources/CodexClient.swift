@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 import Darwin
 import AppKit
 
@@ -131,6 +132,7 @@ private final class CodexReadOperation: @unchecked Sendable {
             "params": ["clientInfo": ["name": "codex_meter", "title": "Codex Meter", "version": "0.1.0"]]
         ], to: input.fileHandleForWriting)
 
+        var creditScope: String?
         var expectedID = 1
         var buffer = Data()
         let descriptor = output.fileHandleForReading.fileDescriptor
@@ -161,8 +163,13 @@ private final class CodexReadOperation: @unchecked Sendable {
                 guard let message = (try? JSONSerialization.jsonObject(with: line)) as? [String: Any] else {
                     throw CodexClientError.invalidResponse
                 }
-                // Ignore unrelated notifications. Only two read-only protocol requests are sent.
+                // Only initialization and read-only account/limit requests are sent.
                 guard (message["id"] as? Int) == expectedID else { continue }
+                if expectedID == 3, message["error"] != nil {
+                    try send(["id": 2, "method": "account/rateLimits/read"], to: input.fileHandleForWriting)
+                    expectedID = 2
+                    continue
+                }
                 if let error = message["error"] as? [String: Any] {
                     let reason = (error["message"] as? String ?? "").lowercased()
                     if reason.contains("not authenticated") || reason.contains("not logged in") || reason.contains("requires chatgpt") {
@@ -175,11 +182,24 @@ private final class CodexReadOperation: @unchecked Sendable {
                 }
                 if expectedID == 1 {
                     try send(["method": "initialized", "params": [:]], to: input.fileHandleForWriting)
+                    try send(["id": 3, "method": "account/read", "params": ["refreshToken": false]], to: input.fileHandleForWriting)
+                    expectedID = 3
+                } else if expectedID == 3 {
+                    // Keep only an in-memory fingerprint. A personal account can be
+                    // scoped by email and plan; workspace billing needs a workspace ID.
+                    if let account = result["account"] as? [String: Any], account["type"] as? String == "chatgpt",
+                       let email = account["email"] as? String, !email.isEmpty,
+                       let plan = account["planType"] as? String,
+                       ["free", "go", "plus", "pro", "prolite"].contains(plan) {
+                        creditScope = SHA256.hash(data: Data((email + "/" + plan).utf8)).map { String(format: "%02x", $0) }.joined()
+                    }
                     try send(["id": 2, "method": "account/rateLimits/read"], to: input.fileHandleForWriting)
                     expectedID = 2
                 } else {
                     try checkCancellation()
-                    return try JSONSerialization.data(withJSONObject: result)
+                    var payload = result
+                    if let creditScope { payload["meterCreditScope"] = creditScope }
+                    return try JSONSerialization.data(withJSONObject: payload)
                 }
             }
         }

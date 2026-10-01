@@ -6,6 +6,7 @@ A small native macOS menu bar app for checking Codex usage and pacing the quota 
 
 - **At a glance:** a menu-bar ring with the consumed percentage inside, plus an optional ring-only mode.
 - **One click:** remaining quota, reset countdown and exact reset time.
+- **Credit balance:** remaining credits, recent consumption and estimated time to exhaustion.
 - **Plan your usage:** daily or hourly allowance, today's budget, average pace and estimated runway.
 - **Reset announcements:** a compact link to Tibo’s latest post mentioning **reset**, with an unread indicator.
 - **Stay up to date:** optional launch at login and quiet checks for new app releases.
@@ -21,7 +22,7 @@ This is an independent project, not affiliated with OpenAI.
 
 Sign in with the official Codex CLI using ChatGPT before opening Meter. You do not give Codex Meter an account, password or API key. The CLI account may be different from the account signed in to the Codex desktop app; Meter reads whichever account the CLI uses. API billing is outside Meter's scope.
 
-Meter asks the locally launched CLI for quota and reset information through `account/rateLimits/read` over standard input/output, then closes that process. The app has no Meter backend or telemetry code. Usage snapshots stay in memory; only the selected quota window, ring-only display, automatic-update and reset-post preferences plus the last-read post ID are saved. Codex CLI manages its own network access, authentication and any logs it writes.
+Meter asks the locally launched CLI for quota and reset information through `account/rateLimits/read` over standard input/output. It also reads `account/read` to keep credit observations scoped to a personal account, then closes that process. The app has no Meter backend or telemetry code. Usage snapshots and up to 30 minutes of credit-balance observations stay in memory; only the selected quota window, ring-only display, automatic-update and reset-post preferences plus the last-read post ID are saved. Codex CLI manages its own network access, authentication and any logs it writes.
 
 Meter can use a standalone Codex CLI or the CLI bundled with the Codex desktop app. It checks the desktop app directly if a standalone CLI path is unavailable, including when an app update leaves an old symlink behind.
 
@@ -59,6 +60,14 @@ The panel header shows the OpenAI mark beside Codex Meter. The Codex Meter title
 
 **Automatically Check for Updates** is on by default. It checks the latest stable GitHub release at app launch and then at most every six hours while running, including after wake. Disable it in Options for manual-only checks. Automatic checks are silent, including network failures. **Check for Updates…** still checks immediately and displays the result. It sends no quota or account data. From version 0.5.3, **Check for Updates…** or **Install <version>…** opens the native Sparkle update window. Confirm the download and installation there; Sparkle verifies the signed feed and archive, replaces the app and relaunches it. Installation always requires your confirmation.
 
+### Credits
+
+When the service supplies credit metadata, the panel shows **Credits remaining** separately from included quota and banked resets. A numeric zero, **Unlimited**, **Unavailable** and **Out of date** are distinct states. When either Codex quota window is exhausted, a fresh available numeric balance also appears beside the menu-bar ring, such as **840 cr** or **1.2k cr**. The ring continues to show used quota. **Ring only** hides the appended balance; the tooltip retains full details. A 100% quota reading with available credits is not proof that a particular task was billed to credits.
+
+**Recent consumption** is the net balance decrease over up to 30 minutes of continuous readings, after at least 15 minutes and three samples. **At this pace** divides the remaining balance by that observed rate. It describes how long credits would last if the recent pace continued; it is not a per-chat ledger or a billing guarantee. Expirations or other balance adjustments can also lower the balance.
+
+The estimate starts with **Estimating…**, pauses after ten minutes without observed spend, and is unavailable after failed or stale reads. A balance increase, gap longer than ten minutes, missing numeric balance or change of personal account restarts observations. Samples are kept only while Meter runs, so restarting starts a new estimate. The CLI supplies account identity; Meter retains only an in-memory fingerprint and never saves email or credentials. Personal account scope requires an email and recognized individual plan. Workspace balances can still be shown, but pace estimates remain unavailable until a reliable workspace scope is exposed.
+
 ### Reset posts from Tibo
 
 **Check Tibo’s Reset Posts** in Options is on by default. Meter reads the public RSS feed at `https://x.noodl3.net/thsottiaux/rss` at launch and every 30 minutes, with a due check after wake. This is a third-party Nitter instance, not an official X/OpenAI service; it may be unavailable, delayed or incomplete. The source sees ordinary connection metadata such as the IP address, but Meter sends no account data, quota, cookies or credentials. No X API key, Python runtime or new library is required.
@@ -91,7 +100,7 @@ The window's start is inferred from its duration and reset time. Projections ass
 
 ## How it works
 
-Codex Meter starts a short-lived `codex app-server` process and reads `account/rateLimits/read` through its documented local protocol. It uses the CLI's existing login, starts no model turns and never consumes reset credits. If desktop and CLI use different accounts, the app follows the CLI account.
+Codex Meter starts a short-lived `codex app-server` process and reads `account/read` and `account/rateLimits/read` through its documented local protocol. It uses the CLI's existing login, starts no model turns and never consumes reset credits. If desktop and CLI use different accounts, the app follows the CLI account.
 
 Usage snapshots stay in memory. Only display, automatic-update and reset-post preferences plus the last-read post ID are saved by the app; macOS manages the login item. Authentication remains managed by Codex; no tokens are copied into this project.
 

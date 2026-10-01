@@ -30,16 +30,44 @@ struct RateLimitWindow: Codable {
     }
 }
 
+struct CreditBalance: Codable {
+    let hasCredits: Bool
+    let unlimited: Bool
+    let balance: String?
+
+    var amount: Double? {
+        guard !unlimited, let balance, let amount = Double(balance), amount.isFinite, amount >= 0 else { return nil }
+        return amount
+    }
+}
+
 struct RateLimitBucket: Codable {
     let limitId: String?
     let limitName: String?
     let planType: String?
     let primary: RateLimitWindow?
     let secondary: RateLimitWindow?
+    let credits: CreditBalance?
+
+    private enum CodingKeys: String, CodingKey { case limitId, limitName, planType, primary, secondary, credits }
+    init(limitId: String?, limitName: String?, planType: String?, primary: RateLimitWindow?, secondary: RateLimitWindow?, credits: CreditBalance? = nil) {
+        self.limitId = limitId; self.limitName = limitName; self.planType = planType
+        self.primary = primary; self.secondary = secondary; self.credits = credits
+    }
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        limitId = try values.decodeIfPresent(String.self, forKey: .limitId)
+        limitName = try values.decodeIfPresent(String.self, forKey: .limitName)
+        planType = try values.decodeIfPresent(String.self, forKey: .planType)
+        primary = try values.decodeIfPresent(RateLimitWindow.self, forKey: .primary)
+        secondary = try values.decodeIfPresent(RateLimitWindow.self, forKey: .secondary)
+        // Invalid optional credit metadata must not hide usable quota data.
+        credits = try? values.decode(CreditBalance.self, forKey: .credits)
+    }
 
     fileprivate func identified(by id: String) -> RateLimitBucket {
         RateLimitBucket(limitId: id, limitName: limitName, planType: planType,
-                        primary: primary, secondary: secondary)
+                        primary: primary, secondary: secondary, credits: credits)
     }
 }
 
@@ -53,10 +81,12 @@ struct UsageEntry: Identifiable {
 struct UsageSnapshot {
     let buckets: [RateLimitBucket]
     let availableResetCount: Int?
+    let creditScope: String?
 
     init(data: Data) throws {
         let response = try JSONDecoder().decode(Response.self, from: data)
         availableResetCount = response.payload.availableResetCount
+        creditScope = response.payload.creditScope
         if let map = response.payload.map {
             buckets = map.keys.sorted {
                 if $0 == "codex" { return $1 != "codex" }
@@ -108,10 +138,12 @@ struct UsageSnapshot {
         let map: [String: RateLimitBucket]?
         let legacy: RateLimitBucket?
         let availableResetCount: Int?
+        let creditScope: String?
         private struct ResetCredits: Decodable { let availableCount: Int }
-        private enum CodingKeys: String, CodingKey { case rateLimitsByLimitId, rateLimits, rateLimitResetCredits }
+        private enum CodingKeys: String, CodingKey { case rateLimitsByLimitId, rateLimits, rateLimitResetCredits, meterCreditScope }
         init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
+            creditScope = try? container.decode(String.self, forKey: .meterCreditScope)
             guard container.contains(.rateLimitsByLimitId) || container.contains(.rateLimits) else {
                 throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath,
                     debugDescription: "The response does not contain usage limits."))
