@@ -54,6 +54,8 @@ final class MeterStore: ObservableObject {
     let announcements = ResetAnnouncements()
     @Published var snapshot: UsageSnapshot?
     @Published var updatedAt: Date?
+    @Published private(set) var claudeSource: ClaudeUsage.Source?
+    @Published private(set) var claudeCheckedAt: Date?
     @Published var error: String?
     @Published var refreshing = false
     @Published var now = Date()
@@ -118,7 +120,11 @@ final class MeterStore: ObservableObject {
         }
         return snapshot?.preferredEntry
     }
-    var stale: Bool { error != nil || (updatedAt.map { now.timeIntervalSince($0) > 600 } ?? false) }
+    // Desktop checks mirror Claude Code's local state, not an independent server
+    // measurement. Keep that connection time separate from the quota observation.
+    var syncsClaudeDesktop: Bool { provider == .claude && claudeSource == .desktop }
+    var freshnessDate: Date? { syncsClaudeDesktop ? (claudeCheckedAt ?? updatedAt) : updatedAt }
+    var stale: Bool { error != nil || (freshnessDate.map { now.timeIntervalSince($0) > 600 } ?? false) }
     var resetPending: Bool { entry?.window.resetsAt.map { $0 <= now.timeIntervalSince1970 } ?? false }
     var uncertain: Bool { stale || resetPending }
     var statusResetCount: Int? { stale ? nil : snapshot?.availableResetCount }
@@ -168,6 +174,8 @@ final class MeterStore: ObservableObject {
                 let observation = try ClaudeUsage.read(fileURL: claudeFileURL)
                 snapshot = observation.snapshot
                 updatedAt = observation.observedAt
+                claudeSource = observation.source
+                claudeCheckedAt = observation.checkedAt
                 error = nil
             } catch {
                 // Local bridge errors never expose file contents or account data.
@@ -216,12 +224,13 @@ struct ConsumptionTrack: View {
     let used: Double?
     let elapsed: Double?
     let faded: Bool
+    var accent: ProviderAccent? = nil
     var body: some View {
         GeometryReader { geometry in
             ZStack(alignment: .leading) {
                 Capsule().fill(Color.primary.opacity(0.1))
                 if let used {
-                    Capsule().fill(meterColor(used)).frame(width: geometry.size.width * used / 100)
+                    Capsule().fill(accent.map { Color(nsColor: $0.color) } ?? meterColor(used)).frame(width: geometry.size.width * used / 100)
                 }
                 if let elapsed {
                     Rectangle().fill(Color.primary.opacity(0.7)).frame(width: 1, height: 9)
@@ -308,43 +317,39 @@ final class MeterDelegate: NSObject, NSApplicationDelegate {
     }
     private func updateStatus() {
         guard let button = statusItem.button else { return }
-        let entry = store.entry
-        let used = entry?.window.usedPercent
-        button.title = store.uncertain && !store.iconOnly && entry != nil ? " !" : ""
-        button.image = StatusIndicator.image(used: used, uncertain: store.uncertain,
-                                 showPercentage: !store.iconOnly && (!selection.claudeEnabled || !store.uncertain), refreshing: store.refreshing,
-                                 resetCount: store.statusResetCount,
-                                 appearance: button.effectiveAppearance,
-                                 unreadAnnouncement: store.announcements.hasUnread)
-        if selection.claudeEnabled, let codexImage = button.image {
-            let claude = selection.claude
-            let claudeImage = StatusIndicator.image(used: claude.entry?.window.usedPercent,
-                uncertain: claude.uncertain, showPercentage: !selection.iconOnly && !claude.uncertain,
-                refreshing: claude.refreshing, resetCount: nil, appearance: button.effectiveAppearance)
-            button.image = StatusIndicator.combined(codex: codexImage, claude: claudeImage)
-            button.title = ""
+        let visible = selection.visibleStatusProviders
+        let images = visible.map { provider in
+            let source = provider == .codex ? selection.codex : selection.claude
+            return StatusIndicator.image(used: source.entry?.window.usedPercent,
+                uncertain: source.uncertain, showPercentage: !selection.iconOnly && !source.uncertain,
+                refreshing: source.refreshing, resetCount: provider == .codex ? source.statusResetCount : nil,
+                appearance: button.effectiveAppearance,
+                unreadAnnouncement: provider == .codex && source.announcements.hasUnread,
+                accent: provider == .codex ? .codex : .claude)
         }
-        button.toolTip = entry.map {
-            "Codex · \($0.window.label) · \(percentage(used)) used\nReset: \(resetDate($0.window.resetsAt) ?? "unavailable")\(store.uncertain ? "\nData needs refreshing" : "")"
-        } ?? "Codex Meter · usage limits unavailable"
-        button.toolTip = (button.toolTip ?? "Codex Meter") + "\nUsage limit resets: " + store.resetAvailabilityText
-        if store.credits != nil {
-            button.toolTip = (button.toolTip ?? "Codex Meter") + "\n" + store.creditBalanceLabel + ": " + store.creditBalanceText
+        button.title = ""
+        button.image = images.count == 2 ? StatusIndicator.combined(codex: images[0], claude: images[1]) : images.first
+        var descriptions = visible.map { provider in
+            let source = provider == .codex ? selection.codex : selection.claude
+            var text = source.entry.map {
+                "\(provider.title) · \($0.window.label) · \(percentage($0.window.usedPercent)) used\nReset: \(resetDate($0.window.resetsAt) ?? "unavailable")"
+            } ?? "\(provider.title) · usage limits unavailable"
+            if source.uncertain { text += "\nData needs updating" }
+            if provider == .codex {
+                text += "\nBanked resets: " + source.resetAvailabilityText
+                if source.credits != nil { text += "\n" + source.creditBalanceLabel + ": " + source.creditBalanceText }
+                if source.announcements.hasUnread { text += "\nUnread Tibo post mentioning reset" }
+            } else {
+                text += source.syncsClaudeDesktop
+                    ? "\nSource: Claude Code's local session state; server freshness is not known"
+                    : "\nSource: last Claude Code capture"
+            }
+            return text
         }
         if let release = store.updater.availableRelease {
-            button.toolTip = (button.toolTip ?? "Codex Meter") + "\nUpdate available: " + release.version.text
+            descriptions.append("Update available: " + release.version.text)
         }
-        if store.announcements.hasUnread {
-            button.toolTip = (button.toolTip ?? "Codex Meter") + "\nUnread Tibo post mentioning reset"
-        }
-        if selection.claudeEnabled {
-            let claude = selection.claude
-            button.toolTip = (button.toolTip ?? "Codex Meter") + "\n\nClaude Code · "
-                + (claude.entry?.window.label ?? "No data") + " · " + percentage(claude.entry?.window.usedPercent) + " used"
-                + "\nReset: " + (resetDate(claude.entry?.window.resetsAt) ?? "unavailable")
-                + (claude.uncertain ? "\nClaude data needs updating" : "")
-                + "\nSource: last Claude Code capture"
-        }
+        button.toolTip = descriptions.joined(separator: "\n\n")
         button.setAccessibilityLabel(button.toolTip)
         panel.schedulePosition()
         if pendingPanelOpen { attemptPanelOpen() }

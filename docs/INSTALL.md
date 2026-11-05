@@ -92,9 +92,9 @@ The app uses ad hoc signing for local use and is not notarized. Build output is 
 
 Gatekeeper may block the downloaded app because it has no Developer ID signature or notarization. If you trust the copy downloaded from this repository's release, first try opening it, then open **System Settings → Privacy & Security**. Find the blocked-app notice, choose **Open Anyway**, and confirm **Open** in the next prompt. See [Apple's guide to safely opening apps](https://support.apple.com/en-us/102445) for the current instructions.
 
-Codex Meter appears in the menu bar without a Dock icon. Click the small ring to open **Usage**; the used percentage is centered inside the ring, and **Ring only** hides that number. The 300-point panel always shows one compact row per enabled service: Codex, plus Claude when **Show Claude** is on. Each row includes its name, period, used quota and bar, remaining share and reset countdown. No service tabs are needed. Open a row's **Details** for budgets and pace; at most one service's Details stays open. Codex Details also contains credits, banked resets and Tibo posts. Compact cues remain visible when attention is needed.
+Codex Meter appears in the menu bar without a Dock icon. Click the small ring to open **Usage**; the used percentage is centered inside the ring, and **Ring only** hides that number. The 300-point panel always shows one compact row per enabled service: Codex, plus Claude when **Monitor Claude** is on. Each row includes its name, period, used quota and bar, remaining share and reset countdown. No service tabs are needed. Open a row's **Details** for budgets and pace; at most one service's Details stays open. Codex Details also contains credits, banked resets and Tibo posts. Compact cues remain visible when attention is needed.
 
-Each row shows relative freshness with **Updated** for Codex or **Captured** for Claude. Hover for its exact time and source explanation. Claude's capture time records local receipt, while the reset countdown is the quota window's scheduled reset.
+Each row shows relative freshness with **Updated** for Codex, **Synced** for a Desktop bridge check, or **Captured** for terminal and older Claude snapshots. Hover for exact check/observation times and the source explanation. These local times are separate from the quota window's scheduled reset.
 
 Missing quota is shown as unavailable, never as zero. A reported zero remains a valid reading. Out-of-date values and unconfirmed resets are marked explicitly and pause estimates; one service's state does not invalidate the other. Use the shared header's refresh button to read Codex and the latest local Claude capture.
 
@@ -106,8 +106,9 @@ The **Options** (`…`) menu contains:
 
 | Menu item | Action |
 | --- | --- |
+| Menu Bar | Choose Codex and Claude, Codex only or Claude only rings |
 | Ring only | Hide the number; keep the ring and any indicator |
-| Show Claude | Show a second service in the same menu-bar item and panel |
+| Monitor Claude | Read Claude usage and include its row in the panel |
 | Set Up Claude… | Configure the bridge when Claude is enabled |
 | Launch at Login | Enable or disable the native macOS login item |
 | Check Tibo’s Reset Posts | Enable or disable the Codex reset-post feed |
@@ -119,13 +120,15 @@ The **Options** (`…`) menu contains:
 
 **Launch at Login** is off until selected. If approval is required, choose **Approve Launch at Login…** and allow the app in macOS Login Items. Keep the app in Applications; login launches do not open the panel.
 
+**Menu Bar** saves the ring display independently of monitoring. **Codex and Claude** and **Claude only** enable Claude monitoring when selected; **Codex only** leaves it running if already enabled. The panel continues to show every monitored service. Turning **Monitor Claude** off stops Meter's Claude reads and returns the rings to Codex.
+
 When a service supplies more than one quota window, click its visible period label to choose a window. Codex and Claude remember their choices separately. Read the [README](../README.md) for the budget calculations and their limits.
 
 ## Optional Claude Code support
 
 Claude support is optional in 0.7.0. Sign in through Claude Code's own flow. Meter connects to local Code sessions in two ways: a small plugin for Claude Desktop's **Code** tab, or a status-line command for terminal Claude Code. Neither route reads OAuth tokens or starts model tasks. General Claude chat, Cowork and remote/cloud sessions are outside this integration.
 
-Install Meter in a stable Applications location first. Enable **Options → Show Claude**, then choose **Set Up Claude… → Enable Bridge**. Setup selects the Desktop plugin when a compatible Desktop installation is available, with the terminal status line as a fallback. The setup result identifies the configured route.
+Install Meter in a stable Applications location first. Enable **Options → Monitor Claude**, then choose **Set Up Claude… → Enable Bridge**. Setup selects the Desktop plugin when a compatible Desktop installation is available, with the terminal status line as a fallback. The setup result identifies the configured route.
 
 Alternatively, run Meter's executable to configure the bridge:
 
@@ -137,13 +140,15 @@ Adjust the path for a different install location, such as `~/Applications`. Keep
 
 ### Desktop Code sessions
 
-The Desktop route installs `codex-meter-claude@codex-meter-local` at user scope from a local marketplace bundled with Meter. It uses the official [Claude Code mods interface](https://code.claude.com/docs/en/plugins/mods/overview), which runs inside a local Code session. It reads the session's quota snapshot at startup and forwards later quota-measurement events to Meter's capture command. The plugin contains no model, prompt, transcript, authentication or network request code.
+The Desktop route installs `codex-meter-claude@codex-meter-local` at user scope from a local marketplace bundled with Meter. It uses the official [Claude Code mods interface](https://code.claude.com/docs/en/plugins/mods/overview), which runs inside a local Code session. Bridge 0.1.1 reads cached session usage at startup and on attach, receives quota-measurement events, and checks the cache every 60 seconds using a [session timer](https://code.claude.com/docs/en/plugins/mods/api#run-work-in-the-background). It starts no model turns and contains no prompt, transcript, authentication or direct network request code.
 
 Setup copies the bundled marketplace to `~/Library/Application Support/Codex Meter/ClaudeDesktopBridge` and sets the installed Meter executable path in that private copy. It uses Claude Code's own validation, marketplace-add and user-scope plugin-install and plugin-enable commands. Before those commands change configuration, setup saves existing `~/.claude/settings.json`, `~/.claude/plugins/known_marketplaces.json` and `~/.claude/plugins/installed_plugins.json`, plus any previous Meter bridge source, under `~/Library/Application Support/Codex Meter/bridge-backup-<id>/`. Backup directories use mode `0700` and copied configuration files `0600`; authentication files are not copied.
 
 Explicit setup enables the Meter plugin even if it was disabled before. If setup fails before registration, the previous plugin source is restored. Once registration has been attempted, valid bridge files and private backups are retained so a partially registered marketplace never points to removed source. Setup reports the failure and can be retried; it does not blindly restore shared Claude configuration over later changes.
 
 After setup, run `/reload-plugins` in an open Code session or open a new local Code session. [Shell-installed plugins load on reload or the next session](https://code.claude.com/docs/en/plugins/install#install-from-your-shell). A configured terminal `statusLine` does not run in the Desktop Code surface. If Claude remains unavailable, check that the plugin is enabled, reload it, and confirm the embedded Claude Code version with `/status`. Organization policy or disabled hooks can prevent it from loading.
+
+When replacing an older bridge, run **Set Up Claude…** again and reload plugins so the open session loads the bundled version. The once-a-minute check runs only while that local session and plugin are active. It reads Claude Code's cache; it cannot force a fresh server quota response.
 
 The mods surface is version dependent. Live Desktop quota capture has been checked with embedded CLI 2.1.309; full reset-cycle verification remains pending. Installing and validating a plugin alone does not prove it has loaded or received quota in an existing session.
 
@@ -163,11 +168,15 @@ Quota fields in the [status-line data](https://code.claude.com/docs/en/statuslin
 
 ### Reading freshness and removal
 
-Claude's row stays visible beside Codex in Meter's panel. The shared header's refresh button rereads the saved capture; it does not ask Anthropic for a new reading. Missing data stays unavailable, and an old capture or elapsed reset pauses budget estimates. **Captured** means when a local session last passed data to the bridge; a terminal status-line redraw can reuse earlier server data. It is not a server freshness guarantee. Open Claude Details for its budget and pace estimates.
+Claude's row stays visible beside Codex in Meter's panel. Meter rereads the local file every 15 seconds; the shared header's refresh button reads it immediately. Neither asks Anthropic for a new reading. Open Claude Details for budget and pace estimates.
 
-Both routes store only capture time and the five-hour/weekly quota fields in `~/Library/Application Support/Codex Meter/claude-usage.json`, using a private file. They store no prompts, transcript paths, session identifiers, account identifiers or credentials. Multiple local sessions share the latest capture, without identifying its account. Claude credit billing, reset banks and announcement feeds are outside this first integration.
+**Synced** uses the Desktop payload's `checkedAt`: the last successful local bridge check. Its separate `observedAt` records a quota change or measurement event. Identical cached checks update the connection time without advancing the quota-observation time. The tooltip shows both and explains that server freshness is unknown. Desktop data becomes out of date if this connection stops for more than ten minutes. A reported reset still waits for new data after its scheduled time; a continuing bridge check does not confirm it.
 
-To disable the display, turn off **Show Claude**. This leaves capture configured. To stop Desktop capture, disable or uninstall `codex-meter-claude@codex-meter-local` in Claude Code's plugin manager, then reload plugins or start a new session. To stop terminal capture, remove only Meter's `statusLine` entry from `~/.claude/settings.json`, or remove its capture call from your existing script. You may then delete `claude-usage.json`. Preserve unrelated settings and any later changes when using a backup.
+Terminal and older snapshots retain **Captured** and become out of date by capture age. A terminal status-line redraw may reuse earlier server data. Missing data remains unavailable. Out-of-date data and unconfirmed resets pause estimates.
+
+Both routes store only supported source/timestamp metadata and the five-hour/weekly quota fields in `~/Library/Application Support/Codex Meter/claude-usage.json`, using a private file. They store no prompts, transcript paths, session identifiers, account identifiers or credentials. Multiple local sessions share the latest snapshot, without identifying its account. Claude credit billing, reset banks and announcement feeds are outside this integration.
+
+To hide only Claude's ring, choose **Menu Bar → Codex only**; monitoring and its panel row remain enabled. To stop Meter's Claude reads and remove its panel row, turn off **Monitor Claude**. This leaves capture configured. To stop Desktop capture, disable or uninstall `codex-meter-claude@codex-meter-local` in Claude Code's plugin manager, then reload plugins or start a new session. To stop terminal capture, remove only Meter's `statusLine` entry from `~/.claude/settings.json`, or remove its capture call from your existing script. You may then delete `claude-usage.json`. Preserve unrelated settings and any later changes when using a backup.
 
 ### Reset posts from Tibo
 
@@ -224,7 +233,7 @@ Codex CLI updates are separate. Use the package manager you originally chose: `b
 
 With Codex alone, the menu bar shows the used quota as a number inside the ring (the percent sign is omitted for readability). Two independent corner dots surround the Codex ring: green at top left for fresh positive reset availability, and amber at bottom right for an unread Tibo post mentioning **reset**. App updates do not light a dot. They can appear together. Missing, zero or stale reset counts never produce a green dot. Options shows **Install <version>…** when a release is available. Credits add no number or indicator to the menu bar; the tooltip includes the exact reset count and credit balance when available. Ring-only mode hides the number, retaining the reset and unread-post indicators.
 
-The shared **Usage** header contains refresh and Options. Each service row has its own **Details** control and relative **Updated** or **Captured** time; hover for the exact date and source explanation. Budget values use the system primary text color for light and dark appearance. The app bundle includes a dedicated meter icon, also used in update dialogs.
+The shared **Usage** header contains refresh and Options. Each service row has its own **Details** control and relative **Updated**, **Synced** or **Captured** time; hover for exact local times and the source explanation. Budget values use the system primary text color for light and dark appearance. The app bundle includes a dedicated meter icon, also used in update dialogs.
 
 **Automatically Check for Updates** is on by default. It checks the latest stable GitHub release at app launch and then at most every six hours while running, including after wake. Disable it in Options for manual-only checks. Automatic checks are silent, including network failures. **Check for Updates…** still checks immediately and displays the result. It sends no quota or account data. From version 0.5.3, **Check for Updates…** or **Install <version>…** opens the native Sparkle update window. Confirm the download and installation there; Sparkle verifies the signed feed and archive, replaces the app and relaunches it. Installation always requires your confirmation.
 

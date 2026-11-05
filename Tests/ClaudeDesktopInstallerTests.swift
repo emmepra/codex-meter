@@ -23,6 +23,10 @@ enum ClaudeDesktopInstallerTests {
         defer { try? files.removeItem(at: root) }
         let source = URL(fileURLWithPath: files.currentDirectoryPath).appendingPathComponent("Resources/ClaudeBridgePlugin")
         let modulePath = "plugins/codex-meter-claude/hooks/register.js"
+        let pluginID = "codex-meter-claude@codex-meter-local"
+        let bundledManifest = try JSONSerialization.jsonObject(with: Data(contentsOf:
+            source.appendingPathComponent("plugins/codex-meter-claude/.claude-plugin/plugin.json"))) as! [String: Any]
+        let bundledVersion = bundledManifest["version"] as! String
         let originalModule = try Data(contentsOf: source.appendingPathComponent(modulePath))
         let originalSettings = Data(#"{"theme":"dark","statusLine":{"type":"command","command":"my-existing-statusline"},"permissions":{"allow":["Read"]}}"#.utf8)
         let originalMarketplace = Data(#"{"unrelated-marketplace":{"source":{"source":"directory","path":"/synthetic/marketplace"},"installLocation":"/synthetic/marketplace","lastUpdated":"2026-01-01T00:00:00Z"}}"#.utf8)
@@ -47,20 +51,30 @@ enum ClaudeDesktopInstallerTests {
                     "source": ["source": "directory", "path": fixture.destination.path],
                     "installLocation": fixture.destination.path
                 ]
-                var plugins = try JSONSerialization.jsonObject(with: originalPlugins) as! [String: Any]
+                var plugins = try JSONSerialization.jsonObject(with: Data(contentsOf: fixture.configFiles[2])) as! [String: Any]
                 var installed = plugins["plugins"] as! [String: Any]
-                installed["codex-meter-claude@codex-meter-local"] = [[
-                    "scope": "user", "version": "0.1.0",
-                    "installPath": fixture.destination.appendingPathComponent("plugins/codex-meter-claude").path
-                ]]
+                if installed[pluginID] == nil {
+                    installed[pluginID] = [[
+                        "scope": "user", "version": bundledVersion,
+                        "installPath": fixture.destination.appendingPathComponent("plugins/codex-meter-claude").path
+                    ]]
+                }
                 plugins["plugins"] = installed
+                var updatedPlugins = plugins
+                var updatedInstalled = installed
+                updatedInstalled[pluginID] = (installed[pluginID] as? [[String: Any]])?.map { entry in
+                    var updated = entry
+                    if entry["scope"] as? String == "user" { updated["version"] = bundledVersion }
+                    return updated
+                }
+                updatedPlugins["plugins"] = updatedInstalled
                 let currentSettings = try Data(contentsOf: fixture.settings)
                 let disabled = try JSONSerialization.jsonObject(with: currentSettings) as! [String: Any]
                 var enabled = disabled
                 var enabledPlugins = enabled["enabledPlugins"] as? [String: Any] ?? [:]
                 enabledPlugins["codex-meter-claude@codex-meter-local"] = true
                 enabled["enabledPlugins"] = enabledPlugins
-                for (name, object) in [("marketplace.json", marketplace), ("plugins.json", plugins),
+                for (name, object) in [("marketplace.json", marketplace), ("plugins.json", plugins), ("plugins-updated.json", updatedPlugins),
                                        ("settings-disabled.json", disabled), ("settings-enabled.json", enabled)] {
                     try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
                         .write(to: templates.appendingPathComponent(name))
@@ -76,6 +90,9 @@ enum ClaudeDesktopInstallerTests {
                 if [ "${2-}" = install ]; then
                   \(copy("plugins.json", to: fixture.configFiles[2]))
                   \(copy("settings-disabled.json", to: fixture.settings))
+                fi
+                if [ "${2-}" = update ]; then
+                  \(failOn == "update" ? "exit 7" : copy("plugins-updated.json", to: fixture.configFiles[2]))
                 fi
                 if [ "${2-}" = enable ]; then
                   \(failOn == "enable" ? "exit 7" : copy("settings-enabled.json", to: fixture.settings))
@@ -112,6 +129,16 @@ enum ClaudeDesktopInstallerTests {
             guard files.fileExists(atPath: log.path) else { return [] }
             return try String(contentsOf: log, encoding: .utf8).components(separatedBy: "END\n")
                 .map { $0.split(separator: "\n").map(String.init) }.filter { !$0.isEmpty }
+        }
+        func writeInstalledVersion(_ version: String, to fixture: Fixture) throws {
+            var plugins = try JSONSerialization.jsonObject(with: originalPlugins) as! [String: Any]
+            var installed = plugins["plugins"] as! [String: Any]
+            installed[pluginID] = [["scope": "user", "version": version,
+                                    "installPath": fixture.destination.appendingPathComponent("plugins/codex-meter-claude").path]]
+            // A different scope must not decide whether the user installation needs updating.
+            installed[pluginID] = (installed[pluginID] as! [[String: Any]]) + [["scope": "project", "version": "unrelated-project-version"]]
+            plugins["plugins"] = installed
+            try JSONSerialization.data(withJSONObject: plugins).write(to: fixture.configFiles[2])
         }
         func checkConfigs(_ fixture: Fixture) throws {
             for (url, original) in zip(fixture.configFiles, originalConfigs) {
@@ -271,6 +298,59 @@ enum ClaudeDesktopInstallerTests {
               "Do not bypass the official CLI to rewrite its disabled entry after failure")
         check(files.fileExists(atPath: enableFailure.destination.appendingPathComponent(modulePath).path),
               "Keep the installed source available when explicit enabling fails")
+
+        // Enabling an already enabled plugin is a CLI error, so a repeat setup
+        // must inspect the user setting rather than invoke enable unconditionally.
+        let alreadyEnabled = try fixture("already-enabled")
+        var alreadyEnabledSettings = disabledSettings
+        alreadyEnabledSettings["enabledPlugins"] = [pluginID: true, "example@unrelated-marketplace": false]
+        try JSONSerialization.data(withJSONObject: alreadyEnabledSettings).write(to: alreadyEnabled.settings)
+        try writeInstalledVersion(bundledVersion, to: alreadyEnabled)
+        try writeCLI(alreadyEnabled.cli, log: alreadyEnabled.log, failOn: "enable", mutating: alreadyEnabled)
+        try await ClaudeDesktopBridge.install(cli: alreadyEnabled.cli, executable: executable, source: source,
+                                               supportDirectory: alreadyEnabled.support, settingsURL: alreadyEnabled.settings)
+        let alreadyEnabledCalls = try calls(alreadyEnabled.log)
+        check(alreadyEnabledCalls.count == 3 && !alreadyEnabledCalls.contains { $0[1] == "enable" || $0[1] == "update" },
+              "Same-version enabled setup must avoid both the failing redundant enable and unnecessary update")
+        check((try JSONSerialization.jsonObject(with: Data(contentsOf: alreadyEnabled.settings)) as! NSDictionary)
+              == alreadyEnabledSettings as NSDictionary, "Repeat setup preserves all enabled and unrelated user settings")
+
+        let upgrade = try fixture("version-upgrade")
+        try writeInstalledVersion("0.0.1", to: upgrade)
+        try writeCLI(upgrade.cli, log: upgrade.log, mutating: upgrade)
+        try await ClaudeDesktopBridge.install(cli: upgrade.cli, executable: executable, source: source,
+                                               supportDirectory: upgrade.support, settingsURL: upgrade.settings)
+        let upgradeCalls = try calls(upgrade.log)
+        check(upgradeCalls.count == 5
+              && upgradeCalls[3] == ["plugin", "update", pluginID, "--scope", "user"]
+              && upgradeCalls[4] == ["plugin", "enable", pluginID, "--scope", "user"],
+              "A retained older user version must update through the official CLI before enabling")
+        let upgradedMetadata = try JSONSerialization.jsonObject(with: Data(contentsOf: upgrade.configFiles[2])) as! [String: Any]
+        let upgradedEntries = (upgradedMetadata["plugins"] as! [String: Any])[pluginID] as! [[String: Any]]
+        check(upgradedEntries.first { $0["scope"] as? String == "user" }?["version"] as? String == bundledVersion,
+              "The mutating CLI fixture must record the bundled version after update")
+        check(upgradedEntries.first { $0["scope"] as? String == "project" }?["version"] as? String == "unrelated-project-version",
+              "Only the owned user installation is updated")
+
+        let updateFailure = try fixture("update-failure")
+        try writeInstalledVersion("0.0.1", to: updateFailure)
+        try writeCLI(updateFailure.cli, log: updateFailure.log, failOn: "update", mutating: updateFailure)
+        let failedUpdate = await rejects({
+            try await ClaudeDesktopBridge.install(cli: updateFailure.cli, executable: executable, source: source,
+                                                   supportDirectory: updateFailure.support, settingsURL: updateFailure.settings)
+        }, "A failed plugin update must never report successful setup")
+        if case ClaudeDesktopBridge.SetupError.setupIncomplete = failedUpdate {} else {
+            fatalError("A failed update after registration must report incomplete setup")
+        }
+        check(try calls(updateFailure.log).last == ["plugin", "update", pluginID, "--scope", "user"],
+              "Do not continue to enabling after an unsuccessful update")
+        let updateFailureBackups = try backups(updateFailure)
+        check(files.fileExists(atPath: updateFailure.destination.appendingPathComponent(modulePath).path)
+              && updateFailureBackups.count == 1,
+              "A failed update retains the valid registered source and private recovery backups")
+        let settingsAfterUpdateFailure = try JSONSerialization.jsonObject(with: Data(contentsOf: updateFailure.settings)) as! NSDictionary
+        check(settingsAfterUpdateFailure == (try JSONSerialization.jsonObject(with: originalSettings) as! NSDictionary),
+              "A failed update preserves unrelated settings and statusLine")
 
         let unrelated = try fixture("unrelated")
         try files.createDirectory(at: unrelated.destination.appendingPathComponent(".claude-plugin"), withIntermediateDirectories: true)

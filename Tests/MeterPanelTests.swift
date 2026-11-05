@@ -256,7 +256,7 @@ struct MeterPanelTests {
         defer { try? FileManager.default.removeItem(at: fixtureDirectory) }
         let fixture = fixtureDirectory.appendingPathComponent("claude-usage.json")
         let received = Date().addingTimeInterval(-30)
-        let payload: [String: Any] = ["rate_limits": [
+        let payload: [String: Any] = ["meterSource": "desktop-cache", "rate_limits": [
             "five_hour": ["used_percentage": 35, "resets_at": received.timeIntervalSince1970 + 7200],
             "seven_day": ["used_percentage": 62, "resets_at": received.timeIntervalSince1970 + 345600]
         ]]
@@ -301,9 +301,9 @@ struct MeterPanelTests {
         precondition(collapsedSize.height < 340, "The default overview must stay compact")
         let appearance = NSAppearance(named: .darkAqua)!
         let codexRing = StatusIndicator.image(used: 25, uncertain: false, showPercentage: true,
-            refreshing: false, resetCount: 3, appearance: appearance)
+            refreshing: false, resetCount: 3, appearance: appearance, accent: .codex)
         let claudeRing = StatusIndicator.image(used: 35, uncertain: false, showPercentage: true,
-            refreshing: false, resetCount: nil, appearance: appearance)
+            refreshing: false, resetCount: nil, appearance: appearance, accent: .claude)
         let combined = StatusIndicator.combined(codex: codexRing, claude: claudeRing)
         precondition(combined.size.height == 20 && combined.size.width == 48)
         for name in [NSAppearance.Name.aqua, .darkAqua] {
@@ -311,9 +311,9 @@ struct MeterPanelTests {
             for (state, usage, uncertain, ringOnly) in [("fresh", 100.0 as Double?, false, false),
                 ("stale", 35.0, true, false), ("unknown", nil, false, false), ("ring-only", 35.0, false, true)] {
                 let left = StatusIndicator.image(used: 25, uncertain: false, showPercentage: !ringOnly,
-                    refreshing: false, resetCount: 3, appearance: appearance, unreadAnnouncement: true)
+                    refreshing: false, resetCount: 3, appearance: appearance, unreadAnnouncement: true, accent: .codex)
                 let right = StatusIndicator.image(used: usage, uncertain: uncertain,
-                    showPercentage: !ringOnly && !uncertain, refreshing: false, resetCount: nil, appearance: appearance)
+                    showPercentage: !ringOnly && !uncertain, refreshing: false, resetCount: nil, appearance: appearance, accent: .claude)
                 let icon = StatusIndicator.combined(codex: left, claude: right)
                 precondition(icon.size == NSSize(width: 48, height: 20))
                 let bitmap = NSBitmapImageRep(data: icon.tiffRepresentation!)!
@@ -343,10 +343,35 @@ struct MeterPanelTests {
         claude.now = received
         claude.selectedID = "claude/secondary"
         precondition(claude.entry?.window.usedPercent == 62 && codex.entry?.bucketId == "codex")
+        // A healthy Desktop sync is distinct from a new quota observation.
+        // Repeatedly rereading the file must advance neither timestamp.
+        var desktopPayload = payload
+        desktopPayload["meterSource"] = "desktop-cache"
+        let oldObservation = received.addingTimeInterval(-1200)
+        try FileManager.default.removeItem(at: fixture)
+        try ClaudeBridge.capture(input: JSONSerialization.data(withJSONObject: desktopPayload), fileURL: fixture, now: oldObservation)
+        try ClaudeBridge.capture(input: JSONSerialization.data(withJSONObject: desktopPayload), fileURL: fixture, now: received)
+        claude.refresh()
+        precondition(claude.syncsClaudeDesktop && !claude.stale && abs(claude.updatedAt!.timeIntervalSince(oldObservation)) < 0.001)
+        precondition(abs(claude.freshnessDate!.timeIntervalSince(received)) < 0.001 && abs(claude.claudeCheckedAt!.timeIntervalSince(received)) < 0.001)
+        claude.refresh()
+        precondition(abs(claude.updatedAt!.timeIntervalSince(oldObservation)) < 0.001 && abs(claude.claudeCheckedAt!.timeIntervalSince(received)) < 0.001)
+        _ = try renderOverview("claude-synced")
+        claude.now = received.addingTimeInterval(601)
+        precondition(claude.stale, "A stopped Desktop sync must become out of date")
+        claude.now = received
+        desktopPayload["meterExpectedLimits"] = payload["rate_limits"]
+        desktopPayload["rate_limits"] = ["seven_day": ["used_percentage": 62, "resets_at": received.timeIntervalSince1970 - 1]]
+        try ClaudeBridge.capture(input: JSONSerialization.data(withJSONObject: desktopPayload), fileURL: fixture, now: received)
+        claude.refresh()
+        precondition(!claude.stale && claude.resetPending && claude.uncertain,
+                     "A live sync cannot confirm a reset from cached quota")
         let unknown = try ClaudeBridge.capture(input: Data("{}".utf8), fileURL: fixture, now: Date())
         precondition(unknown == "Claude usage unavailable")
         claude.refresh()
         precondition(claude.entry == nil, "Missing Claude windows must clear earlier values")
+        precondition(!claude.syncsClaudeDesktop && claude.claudeCheckedAt == nil,
+                     "Legacy and terminal captures must clear Desktop sync metadata")
         _ = try renderOverview("claude-unknown")
         try FileManager.default.removeItem(at: fixture)
         claude.refresh()
