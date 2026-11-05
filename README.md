@@ -22,7 +22,7 @@ The preview shows both services with synthetic quota values, not actual account 
 
 </details>
 
-**0.7.0 is being prepared and is not yet published.** See the [release notes](docs/releases/0.7.0.md) for the new overview and Claude setup.
+See the [0.7.0 release notes](docs/releases/0.7.0.md) for the new overview and Claude setup.
 
 This is an independent project, not affiliated with OpenAI or Anthropic.
 
