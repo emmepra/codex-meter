@@ -46,14 +46,38 @@ private final class TestDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    private func geometryMatches(height: CGFloat) -> Bool {
+        guard panel.isVisible, let anchor = item.button?.window, anchor.isVisible,
+              let screen = anchor.screen else { return false }
+        let frame = panel.frame
+        let anchorFrame = anchor.frame
+        let expected = PanelPlacement.frame(anchor: anchorFrame,
+            size: NSSize(width: 270, height: height), screen: screen.frame)
+        return abs(frame.maxY - anchorFrame.minY) < 0.01
+            && abs(frame.height - height) < 0.01
+            && abs(frame.width - 270) < 0.01
+            && screen.frame.contains(frame)
+            && abs(frame.midX - expected.midX) <= 0.5
+    }
+
     private func checkPosition(height: CGFloat) {
-        let anchor = item.button!.window!
-        require(abs(panel.frame.maxY - anchor.frame.minY) < 0.01,
-                "panel top must touch menu bar: panel=\(panel.frame), anchor=\(anchor.frame)")
-        require(abs(panel.frame.height - height) < 0.01,
-                "content height must update: expected \(height), got \(panel.frame.height)")
-        require(abs(panel.frame.width - 270) < 0.01, "panel width must stay compact")
-        require(anchor.screen!.frame.contains(panel.frame), "panel must stay on anchor display")
+        require(panel.isVisible, "panel must remain visible")
+        guard let anchor = item.button?.window, let screen = anchor.screen else {
+            require(false, "status item must retain an anchor display")
+            return
+        }
+        require(anchor.isVisible, "status item must remain visible")
+        let frame = panel.frame
+        let anchorFrame = anchor.frame
+        let expected = PanelPlacement.frame(anchor: anchorFrame,
+            size: NSSize(width: 270, height: height), screen: screen.frame)
+        require(abs(frame.maxY - anchorFrame.minY) < 0.01,
+                "panel top must touch menu bar: panel=\(frame), anchor=\(anchorFrame)")
+        require(abs(frame.height - height) < 0.01,
+                "content height must update: expected \(height), got \(frame.height)")
+        require(abs(frame.width - 270) < 0.01, "panel width must stay compact")
+        require(screen.frame.contains(frame), "panel must stay on anchor display")
+        require(abs(frame.midX - expected.midX) <= 0.5, "panel must align with the status item")
         print("PASS: native panel height \(Int(height)), menu bar gap 0 pt")
     }
 
@@ -64,18 +88,20 @@ private final class TestDelegate: NSObject, NSApplicationDelegate {
         require(anchorReady, "status item must be visible in an interactive macOS session")
         let opened = await waitUntil { self.panel.show() }
         require(opened, "panel must open")
-        let initial = await waitUntil { abs(self.panel.frame.height - 107) < 0.01 }
-        require(initial, "initial content must lay out")
+        let initial = await waitUntil { self.geometryMatches(height: 107) }
+        require(initial, "initial content must lay out at the menu bar")
         checkPosition(height: 107)
 
         // Exercise the production hosting view's automatic layout callback. No
         // manual position request after changing SwiftUI's content height.
         model.height = 230
-        let grew = await waitUntil { abs(self.panel.frame.height - 230) < 0.01 }
-        require(grew, "panel must grow when loaded content arrives")
+        // SwiftUI content sizing and the system-hosted anchor can settle in
+        // separate passes. Height alone is not sufficient to assert placement.
+        let grew = await waitUntil { self.geometryMatches(height: 230) }
+        require(grew, "panel must grow and settle at the menu bar: frame=\(panel.frame), visible=\(panel.isVisible)")
         checkPosition(height: 230)
         model.height = 140.5
-        let shrank = await waitUntil { abs(self.panel.frame.height - 141) < 0.01 }
+        let shrank = await waitUntil { self.geometryMatches(height: 141) }
         require(shrank, "panel must shrink when content changes: frame=\(panel.frame), visible=\(panel.isVisible)")
         checkPosition(height: 141)
 
@@ -83,17 +109,17 @@ private final class TestDelegate: NSObject, NSApplicationDelegate {
         let previousAnchor = item.button!.window!.frame
         item.button?.title = "◉"
         let followed = await waitUntil {
-            let anchor = self.item.button!.window!
+            guard let anchor = self.item.button?.window else { return false }
             guard anchor.frame != previousAnchor else { return false }
-            let expected = PanelPlacement.frame(anchor: anchor.frame,
-                size: self.panel.frame.size, screen: anchor.screen!.frame)
-            return abs(self.panel.frame.midX - expected.midX) <= 0.5 && self.panel.frame.maxY == expected.maxY
+            return self.geometryMatches(height: 141)
         }
         require(followed, "panel must follow status item movement")
         checkPosition(height: 141)
         panel.hide()
         require(!panel.isVisible, "panel must hide")
         require(panel.show(), "panel must reopen")
+        let reopened = await waitUntil { self.geometryMatches(height: 141) }
+        require(reopened, "reopened panel must settle at the menu bar")
         checkPosition(height: 141)
         panel.hide()
         NSStatusBar.system.removeStatusItem(item)

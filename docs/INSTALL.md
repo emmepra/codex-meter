@@ -6,12 +6,13 @@ Download the app from GitHub Releases, or build it from source.
 
 - An Apple Silicon Mac with macOS 13 or later. Local app testing has been on macOS 26.6.2; Intel builds and older macOS releases have not been verified.
 - Codex CLI installed and signed in with the ChatGPT account whose quota you want to monitor.
+- Optional Claude support needs a local Claude Code subscription session and the bridge setup below. This Desktop plugin package requires embedded Claude Code 2.1.299 or later; check `/status` in the Code tab.
 
 The downloaded app does not require Xcode, a Swift compiler or a source checkout. Building from source additionally requires Git and Xcode Command Line Tools with Swift 5.9 or later.
 
 ## Login & privacy
 
-Meter uses the official Codex CLI login; you do not give the project an account, password or API key. It reads quota and reset details through a short-lived local CLI process and has no Meter backend or telemetry. Usage and up to 30 minutes of recent credit samples stay in memory. Only display, automatic-update and reset-post preferences plus the last-read post ID are saved; Codex CLI manages its own network access, authentication and logs. See the [README's privacy details](../README.md#login--privacy) and the next section for setup. The CLI account can differ from the Codex desktop account.
+Meter uses the official Codex CLI login; you do not give the project an account, password or API key. It reads quota and reset details through a short-lived local CLI process and has no Meter backend or telemetry. Codex usage and up to 30 minutes of recent credit samples stay in memory. Display and provider preferences, automatic-update and reset-post preferences plus the last-read post ID are saved; Codex CLI manages its own network access, authentication and logs. The optional Claude bridge saves one sanitized quota snapshot locally, as described below. See the [README's privacy details](../README.md#login--privacy). The CLI account can differ from the Codex desktop account.
 
 ## Install Codex CLI and sign in
 
@@ -91,34 +92,88 @@ The app uses ad hoc signing for local use and is not notarized. Build output is 
 
 Gatekeeper may block the downloaded app because it has no Developer ID signature or notarization. If you trust the copy downloaded from this repository's release, first try opening it, then open **System Settings → Privacy & Security**. Find the blocked-app notice, choose **Open Anyway**, and confirm **Open** in the next prompt. See [Apple's guide to safely opening apps](https://support.apple.com/en-us/102445) for the current instructions.
 
-Codex Meter appears in the menu bar without a Dock icon. Click the small ring to open the panel; the used percentage is centered inside the ring. **Ring only** hides that number. The panel shows **used** included quota, its remaining share and reset countdown, alongside credit balance when available. **Credits in use** requires an observed balance decrease in the last ten minutes from fresh, scoped readings and an exhausted Codex quota window. Expand **Details** for quota budgets, recent credit consumption and credit runway; there is no separate credit view to switch to.
+Codex Meter appears in the menu bar without a Dock icon. Click the small ring to open **Usage**; the used percentage is centered inside the ring, and **Ring only** hides that number. The 300-point panel always shows one compact row per enabled service: Codex, plus Claude when **Show Claude** is on. Each row includes its name, period, used quota and bar, remaining share and reset countdown. No service tabs are needed. Open a row's **Details** for budgets and pace; at most one service's Details stays open. Codex Details also contains credits, banked resets and Tibo posts. Compact cues remain visible when attention is needed.
+
+Each row shows relative freshness with **Updated** for Codex or **Captured** for Claude. Hover for its exact time and source explanation. Claude's capture time records local receipt, while the reset countdown is the quota window's scheduled reset.
+
+Missing quota is shown as unavailable, never as zero. A reported zero remains a valid reading. Out-of-date values and unconfirmed resets are marked explicitly and pause estimates; one service's state does not invalidate the other. Use the shared header's refresh button to read Codex and the latest local Claude capture.
 
 Credit pace uses a positive net balance decrease over up to 30 minutes of continuous readings, after at least 15 minutes and three samples with a fresh latest reading. Observations are independent of quota usage; reaching 100% or returning to included quota does not restart them. Details shows **Estimating…** while history is insufficient or **Awaiting balance updates** when the rolling window has no positive decrease. Restarting Meter, changing account, a recharge, long gap or failed or missing balance read restarts the observations. See [Credits](../README.md#credits) for scope and calculation limits.
 
-**Usage limit resets** shows banked resets for the Codex CLI account. A fresh positive count is green; zero is red. Out-of-date counts remain orange, and **Unavailable** is distinct from zero.
+**Banked resets** in Codex Details shows banked resets for the Codex CLI account. A fresh positive count is green; zero is red. Out-of-date counts remain orange, and **Unavailable** is distinct from zero.
 
 The **Options** (`…`) menu contains:
 
 | Menu item | Action |
 | --- | --- |
 | Ring only | Hide the number; keep the ring and any indicator |
+| Show Claude | Show a second service in the same menu-bar item and panel |
+| Set Up Claude… | Configure the bridge when Claude is enabled |
 | Launch at Login | Enable or disable the native macOS login item |
+| Check Tibo’s Reset Posts | Enable or disable the Codex reset-post feed |
 | Automatically Check for Updates | Check silently at launch and every six hours |
 | Check for Updates… | Check now and display the result |
 | Install <version>… | Open the native update window for the available release |
 | Open Repository | Open the project on GitHub |
-| Refresh | Read current usage |
 | Quit | Close Codex Meter |
 
 **Launch at Login** is off until selected. If approval is required, choose **Approve Launch at Login…** and allow the app in macOS Login Items. Keep the app in Applications; login launches do not open the panel.
 
-Other available quota windows appear in the same menu. Read the [README](../README.md) for the budget calculations and their limits.
+When a service supplies more than one quota window, click its visible period label to choose a window. Codex and Claude remember their choices separately. Read the [README](../README.md) for the budget calculations and their limits.
+
+## Optional Claude Code support
+
+Claude support is optional in 0.7.0. Sign in through Claude Code's own flow. Meter connects to local Code sessions in two ways: a small plugin for Claude Desktop's **Code** tab, or a status-line command for terminal Claude Code. Neither route reads OAuth tokens or starts model tasks. General Claude chat, Cowork and remote/cloud sessions are outside this integration.
+
+Install Meter in a stable Applications location first. Enable **Options → Show Claude**, then choose **Set Up Claude… → Enable Bridge**. Setup selects the Desktop plugin when a compatible Desktop installation is available, with the terminal status line as a fallback. The setup result identifies the configured route.
+
+Alternatively, run Meter's executable to configure the bridge:
+
+```sh
+"/Applications/Codex Meter.app/Contents/MacOS/CodexMeter" --install-claude-bridge
+```
+
+Adjust the path for a different install location, such as `~/Applications`. Keep the app at this path, or rerun setup after moving it. Setup does not sign in, send prompts or request model responses.
+
+### Desktop Code sessions
+
+The Desktop route installs `codex-meter-claude@codex-meter-local` at user scope from a local marketplace bundled with Meter. It uses the official [Claude Code mods interface](https://code.claude.com/docs/en/plugins/mods/overview), which runs inside a local Code session. It reads the session's quota snapshot at startup and forwards later quota-measurement events to Meter's capture command. The plugin contains no model, prompt, transcript, authentication or network request code.
+
+Setup copies the bundled marketplace to `~/Library/Application Support/Codex Meter/ClaudeDesktopBridge` and sets the installed Meter executable path in that private copy. It uses Claude Code's own validation, marketplace-add and user-scope plugin-install and plugin-enable commands. Before those commands change configuration, setup saves existing `~/.claude/settings.json`, `~/.claude/plugins/known_marketplaces.json` and `~/.claude/plugins/installed_plugins.json`, plus any previous Meter bridge source, under `~/Library/Application Support/Codex Meter/bridge-backup-<id>/`. Backup directories use mode `0700` and copied configuration files `0600`; authentication files are not copied.
+
+Explicit setup enables the Meter plugin even if it was disabled before. If setup fails before registration, the previous plugin source is restored. Once registration has been attempted, valid bridge files and private backups are retained so a partially registered marketplace never points to removed source. Setup reports the failure and can be retried; it does not blindly restore shared Claude configuration over later changes.
+
+After setup, run `/reload-plugins` in an open Code session or open a new local Code session. [Shell-installed plugins load on reload or the next session](https://code.claude.com/docs/en/plugins/install#install-from-your-shell). A configured terminal `statusLine` does not run in the Desktop Code surface. If Claude remains unavailable, check that the plugin is enabled, reload it, and confirm the embedded Claude Code version with `/status`. Organization policy or disabled hooks can prevent it from loading.
+
+The mods surface is version dependent. Live Desktop quota capture has been checked with embedded CLI 2.1.309; full reset-cycle verification remains pending. Installing and validating a plugin alone does not prove it has loaded or received quota in an existing session.
+
+### Terminal Code sessions
+
+The terminal route adds Meter's capture command to `statusLine` in `~/.claude/settings.json`, preserving other settings. Before changing an existing file, it saves the original bytes beside it as `settings.codex-meter-backup-<id>.json`. It refuses to replace an unrelated status-line command. A previous Meter-generated command can be updated when its executable moves.
+
+If you already have a custom status line, keep it and add Meter's capture command inside your existing script. Read stdin once and pass the same payload to both commands, suppressing only Meter's output. For a Bash status-line script, the additional capture can look like this after reading stdin into a variable named `status_payload`:
+
+```sh
+printf '%s' "$status_payload" | "/Applications/Codex Meter.app/Contents/MacOS/CodexMeter" --capture-claude-usage >/dev/null
+```
+
+Your existing display command must also read `status_payload`; it cannot read stdin a second time. Do not write the raw payload to a file: it can include session and project information. Project-level status-line settings can override the user setting.
+
+Quota fields in the [status-line data](https://code.claude.com/docs/en/statusline#rate-limit-usage) may be absent until the session receives its first API response. Open or continue your terminal session normally; Meter does not create a model request to populate the fields.
+
+### Reading freshness and removal
+
+Claude's row stays visible beside Codex in Meter's panel. The shared header's refresh button rereads the saved capture; it does not ask Anthropic for a new reading. Missing data stays unavailable, and an old capture or elapsed reset pauses budget estimates. **Captured** means when a local session last passed data to the bridge; a terminal status-line redraw can reuse earlier server data. It is not a server freshness guarantee. Open Claude Details for its budget and pace estimates.
+
+Both routes store only capture time and the five-hour/weekly quota fields in `~/Library/Application Support/Codex Meter/claude-usage.json`, using a private file. They store no prompts, transcript paths, session identifiers, account identifiers or credentials. Multiple local sessions share the latest capture, without identifying its account. Claude credit billing, reset banks and announcement feeds are outside this first integration.
+
+To disable the display, turn off **Show Claude**. This leaves capture configured. To stop Desktop capture, disable or uninstall `codex-meter-claude@codex-meter-local` in Claude Code's plugin manager, then reload plugins or start a new session. To stop terminal capture, remove only Meter's `statusLine` entry from `~/.claude/settings.json`, or remove its capture call from your existing script. You may then delete `claude-usage.json`. Preserve unrelated settings and any later changes when using a backup.
 
 ### Reset posts from Tibo
 
 **Check Tibo’s Reset Posts** in Options is on by default. Meter reads the public RSS feed at `https://x.noodl3.net/thsottiaux/rss` at launch and every 30 minutes, with a due check after wake. This is a third-party Nitter instance, not an official X/OpenAI service; it may be unavailable, delayed or incomplete. The source sees ordinary connection metadata such as the IP address, but Meter sends no account data, quota, cookies or credentials. No X API key, Python runtime or new library is required.
 
-The panel shows a single compact link for the newest matching post in the last seven days. It matches the standalone word **reset**, case-insensitively, in the post title/text after removing URLs; it checks the author and post link and ignores other authors and reposts. Recent posts show **Today** or **Yesterday**. Hover for the full date, time and excerpt; click to open the original post on X. A keyword match does not confirm a reset on your account. Post contents stay in memory; only the last-read post ID and the feature preference are saved. Opening the post, using the small **Mark as seen** checkmark on its row, or choosing **Mark Tibo Post as Read** clears the amber dot across restarts. A newer matching post lights it again. The dot is also acknowledged if two fresh successful quota reads, observed after detecting the post and at most ten minutes apart, show an increase in available resets. The link stays visible. This is a dismissal heuristic, not confirmation that the post caused that reset. An initial positive count, missing/failed reads or a long gap do not establish a connection; the in-memory comparison restarts. Cached matches are marked if a refresh fails, and **Tibo posts unavailable** distinguishes a failed source from no recent match. Disable the option to stop fetching and hide the row.
+Codex Details shows a single compact link for the newest matching post in the last seven days. It matches the standalone word **reset**, case-insensitively, in the post title/text after removing URLs; it checks the author and post link and ignores other authors and reposts. Recent posts show **Today** or **Yesterday**. Hover for the full date, time and excerpt; click to open the original post on X. A keyword match does not confirm a reset on your account. Post contents stay in memory; only the last-read post ID and the feature preference are saved. Opening the post, using the small **Mark as seen** checkmark on its row, or choosing **Mark Tibo Post as Read** clears the amber dot across restarts. A newer matching post lights it again. The dot is also acknowledged if two fresh successful quota reads, observed after detecting the post and at most ten minutes apart, show an increase in available resets. The link stays visible. This is a dismissal heuristic, not confirmation that the post caused that reset. An initial positive count, missing/failed reads or a long gap do not establish a connection; the in-memory comparison restarts. Cached matches are marked if a refresh fails, and **Tibo posts unavailable** distinguishes a failed source from no recent match. Disable the option to stop fetching and hide the row.
 
 ## Check a problem
 
@@ -141,9 +196,9 @@ The tests use synthetic data without login or network access. `--check` makes a 
 
 If the CLI is not found, check `command -v codex`. Codex Meter checks `~/.local/bin`, `/opt/homebrew/bin`, `/usr/local/bin`, its inherited `PATH`, and the CLI bundled with the Codex desktop app. Finder-launched apps may have a different `PATH` from Terminal, especially with Node version managers. Meter skips broken CLI symlinks, which can occur after a desktop app update, and checks the installed desktop app directly. If neither installation is found, install or update the Codex CLI or desktop app, then refresh.
 
-If sign-in is required, run `codex login` and use **Refresh** in Codex Meter. If an error persists, check that the CLI works and that your network connection is available. Unknown quota values remain unavailable; an old value after a failed refresh is marked as stale.
+If sign-in is required, run `codex login` and click the refresh button in Meter's shared header. If an error persists, check that the CLI works and that your network connection is available. Unknown quota values remain unavailable; an old value after a failed refresh is marked as stale.
 
-If **Usage limit resets** shows **Unavailable**, the CLI/service did not return a valid reset count. This does not mean you have zero resets. The field is confirmed in CLI 0.155.0-alpha.16's generated schema; the minimum stable CLI version and account-specific availability are not yet verified. Ordinary quota display still works when this optional field is absent. **Out of date** means the last known count needs a successful refresh. Meter cannot redeem resets.
+If **Banked resets** shows **Unavailable**, the CLI/service did not return a valid reset count. This does not mean you have zero resets. The field is confirmed in CLI 0.155.0-alpha.16's generated schema; the minimum stable CLI version and account-specific availability are not yet verified. Ordinary quota display still works when this optional field is absent. **Out of date** means the last known count needs a successful refresh. Meter cannot redeem resets.
 
 ## Update
 
@@ -167,9 +222,9 @@ Codex CLI updates are separate. Use the package manager you originally chose: `b
 
 ### Compact menu bar and project links
 
-The menu bar shows the used quota as a number inside the ring (the percent sign is omitted for readability). Two independent corner dots surround the ring: green at top left for fresh positive reset availability, and amber at bottom right for an unread Tibo post mentioning **reset**. App updates do not light a dot. They can appear together. Missing, zero or stale reset counts never produce a green dot. Options shows **Install <version>…** when a release is available. Credits add no number or indicator to the menu bar; the tooltip includes the exact reset count and credit balance when available. Ring-only mode hides the number, retaining the reset and unread-post indicators.
+With Codex alone, the menu bar shows the used quota as a number inside the ring (the percent sign is omitted for readability). Two independent corner dots surround the Codex ring: green at top left for fresh positive reset availability, and amber at bottom right for an unread Tibo post mentioning **reset**. App updates do not light a dot. They can appear together. Missing, zero or stale reset counts never produce a green dot. Options shows **Install <version>…** when a release is available. Credits add no number or indicator to the menu bar; the tooltip includes the exact reset count and credit balance when available. Ring-only mode hides the number, retaining the reset and unread-post indicators.
 
-The panel header shows the OpenAI mark beside Codex Meter. The Codex Meter title links to the repository; the refresh button is beside Options in the header, replacing itself with a spinner while loading. A compact footer pairs the last successful refresh time with **Details**; hover for the full refresh date. Budget values use the system primary text color for light and dark appearance. The app bundle includes a dedicated meter icon, also used in update dialogs.
+The shared **Usage** header contains refresh and Options. Each service row has its own **Details** control and relative **Updated** or **Captured** time; hover for the exact date and source explanation. Budget values use the system primary text color for light and dark appearance. The app bundle includes a dedicated meter icon, also used in update dialogs.
 
 **Automatically Check for Updates** is on by default. It checks the latest stable GitHub release at app launch and then at most every six hours while running, including after wake. Disable it in Options for manual-only checks. Automatic checks are silent, including network failures. **Check for Updates…** still checks immediately and displays the result. It sends no quota or account data. From version 0.5.3, **Check for Updates…** or **Install <version>…** opens the native Sparkle update window. Confirm the download and installation there; Sparkle verifies the signed feed and archive, replaces the app and relaunches it. Installation always requires your confirmation.
 
@@ -177,4 +232,6 @@ The panel header shows the OpenAI mark beside Codex Meter. The Codex Meter title
 
 Choose **Options → Quit**, then move **Codex Meter.app** from its installation folder to the Trash in Finder. This may be `/Applications`, `~/Applications`, or a custom destination.
 
-This removes Codex Meter only. The Codex CLI, its sign-in credentials and configuration, and your source checkout remain in place. There is no need to run `codex logout` or remove `~/.codex`. Codex Meter's small display preferences remain available if you reinstall it.
+If you enabled Claude capture, first remove its status-line entry or wrapper call as described [above](#optional-claude-code-support), so Claude Code does not invoke a removed app. The sanitized `claude-usage.json` file may also be deleted.
+
+Removing the app leaves the official CLIs, their sign-in credentials and configuration, and your source checkout in place. There is no need to run `codex logout` or remove `~/.codex`. Codex Meter's small display preferences remain available if you reinstall it.

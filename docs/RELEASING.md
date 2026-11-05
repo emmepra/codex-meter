@@ -12,6 +12,18 @@ The Ed25519 private key stays in the maintainer Mac login Keychain, account `it.
 2. Run `./scripts/test.sh` and `./scripts/package-release.sh`. For UI changes,
    also run `./scripts/test-ui.sh` in a logged-in macOS desktop and check the app.
    Packaging does not launch the app or make a live quota read.
+   If a synchronized checkout attaches Finder metadata that invalidates the app's
+   signature, use a local build directory:
+
+   ```sh
+   meter_build_dir=$(mktemp -d /private/tmp/codex-meter-build.XXXXXX)
+   METER_BUILD_DIR="$meter_build_dir" ./scripts/package-release.sh
+   ```
+
+   Final artifacts remain in `.build/release/` for the existing CI upload step.
+   Package and publication staging use temporary local directories independently
+   of the checkout; they are removed automatically. Remove the optional build
+   directory when finished.
 3. Submit the version and notes through a pull request, following
    [Contributing](../CONTRIBUTING.md). After review and the required **build** check
    pass, merge the PR. `main` is protected, including for administrators.
@@ -29,6 +41,13 @@ The Ed25519 private key stays in the maintainer Mac login Keychain, account `it.
 5. After the tag's **Build and release** run succeeds, run `./scripts/publish-release.sh` from the clean tagged commit on the maintainer Mac. Authorize the Sparkle signing tool in Keychain when prompted. The script downloads and verifies the draft ZIP, checks bundle version, source commit and embedded public key, signs the archive and appcast, verifies both signatures, uploads `appcast.xml`, and publishes the release. Then open the
    [release](https://github.com/emmepra/codex-meter/releases). Confirm the version,
    installation notes, ZIP and checksum, and download the ZIP once to verify it.
+
+   To prepare the signed assets while keeping the release unpublished, run
+   `./scripts/publish-release.sh --prepare-only` instead. It performs the same
+   verification and signing, uploads `appcast.xml`, and leaves the release as a
+   draft. This can be repeated for an unpublished draft. Run the command without
+   the option only when publication is authorized; both modes refuse a published
+   release and require the exact clean tagged source commit.
 
 Pushing a tag creates an unpublished draft; local signing and `publish-release.sh` are the publication step. Pushes to `main` and pull requests
 run tests and retain build artifacts for 14 days; they do not create a release.

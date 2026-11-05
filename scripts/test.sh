@@ -38,3 +38,18 @@ xcrun swiftc -swift-version 5 -parse-as-library -D METER_TESTS -module-cache-pat
 xcrun swiftc -swift-version 5 -parse-as-library -D METER_TESTS -module-cache-path .build/module-cache \
   Sources/UsageSnapshot.swift Sources/CreditPace.swift Tests/CreditPaceTests.swift -o .build/credit-pace-tests
 .build/credit-pace-tests
+
+xcrun swiftc -swift-version 5 -parse-as-library -D METER_TESTS -module-cache-path .build/module-cache \
+  Sources/ProviderSelection.swift Tests/ProviderSelectionTests.swift -o .build/provider-selection-tests
+.build/provider-selection-tests
+
+xcrun swiftc -swift-version 5 -parse-as-library -D METER_TESTS -module-cache-path .build/module-cache \
+  Sources/UsageSnapshot.swift Sources/ClaudeUsage.swift Sources/ClaudeBridge.swift Tests/ClaudeUsageTests.swift -o .build/claude-usage-tests
+.build/claude-usage-tests
+
+xcrun swiftc -swift-version 5 -parse-as-library -D METER_TESTS -module-cache-path .build/module-cache \
+  Sources/UsageSnapshot.swift Sources/ClaudeUsage.swift Sources/ClaudeBridge.swift Sources/ClaudeDesktopBridge.swift \
+  Tests/ClaudeDesktopInstallerTests.swift -o .build/claude-desktop-installer-tests
+.build/claude-desktop-installer-tests
+
+node Tests/ClaudeDesktopBridgeTests.js

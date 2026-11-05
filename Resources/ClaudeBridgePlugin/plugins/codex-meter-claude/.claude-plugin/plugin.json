@@ -1,0 +1,6 @@
+{
+  "name": "codex-meter-claude",
+  "version": "0.1.0",
+  "description": "Sends only five-hour and weekly quota readings to the installed Codex Meter app, without credentials or model calls.",
+  "author": { "name": "Codex Meter contributors" }
+}

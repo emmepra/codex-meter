@@ -1,0 +1,4 @@
+{
+  "description": "Observe Claude Code quota readings in Desktop and terminal sessions.",
+  "modules": ["./register.js"]
+}
