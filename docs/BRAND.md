@@ -36,7 +36,7 @@ iconutil -c icns .build/AppIcon.iconset -o .build/AppIcon.icns
 
 | Asset | Size | Purpose |
 | --- | --- | --- |
-| `assets/banner.svg`, `assets/banner.png` | 1600 × 540 | README header |
+| `assets/banner.svg`, `assets/banner.png` | 1600 × 540 | SVG README header and PNG export |
 | `assets/social-preview.png` | 1600 × 800 | Repository social preview |
 | `assets/logo.svg`, `assets/logo.png` | 1024 × 1024, transparent | Standalone project mark |
 | `Resources/MeterMark.svg`, `Resources/MeterMark.png` | Vector / 256 × 256, transparent | Native panel header |

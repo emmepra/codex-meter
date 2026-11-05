@@ -1,4 +1,4 @@
-![Codex Meter — Codex and Claude, in view.](assets/banner.png)
+![Codex Meter — Codex and Claude, in view.](assets/banner.svg)
 
 A native macOS menu-bar app for monitoring **Codex and Claude Code** quota in one place.
 
