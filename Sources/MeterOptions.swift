@@ -25,7 +25,16 @@ struct MeterOptions: View {
         } else {
             Menu {
                 Toggle("Ring only", isOn: $selection.iconOnly)
-                Toggle("Show Claude", isOn: $selection.claudeEnabled)
+                Menu("Menu Bar") {
+                    ForEach(StatusBarProviders.allCases, id: \.self) { providers in
+                        Button { selection.setStatusBarProviders(providers) } label: {
+                            if selection.effectiveStatusBarProviders == providers {
+                                Label(providers.title, systemImage: "checkmark")
+                            } else { Text(providers.title) }
+                        }
+                    }
+                }
+                Toggle("Monitor Claude", isOn: $selection.claudeEnabled)
                 if selection.claudeEnabled {
                     Button(settingUp ? "Connecting Claude…" : "Set Up Claude…") { showClaudeSetup() }
                         .disabled(settingUp)

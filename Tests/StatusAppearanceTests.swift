@@ -45,7 +45,7 @@ private final class AppearanceTestDelegate: NSObject, NSApplicationDelegate {
         renderedAppearance = appearance.name
         button.image = StatusIndicator.image(used: 37, uncertain: false,
             showPercentage: true, refreshing: false, resetCount: nil,
-            appearance: appearance)
+            appearance: appearance, accent: .codex)
     }
 
     private func imageLuminance() -> Double {

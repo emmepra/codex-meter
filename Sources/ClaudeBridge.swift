@@ -12,6 +12,8 @@ enum ClaudeBridge {
         case unsafePath
         case settingsChanged
         case writeFailed
+        case supersededCache
+        case captureBusy
 
         var errorDescription: String? {
             switch self {
@@ -22,6 +24,8 @@ enum ClaudeBridge {
             case .unsafePath: return "The bridge cannot write through a symbolic link or an invalid file path."
             case .settingsChanged: return "Claude settings changed during setup. Try setup again."
             case .writeFailed: return "The bridge could not safely save its local file."
+            case .supersededCache: return "Another Claude observation superseded this cached reading."
+            case .captureBusy: return "Another Claude capture is still being saved. Try again shortly."
             }
         }
     }
@@ -48,21 +52,66 @@ enum ClaudeBridge {
             guard let number = value as? NSNumber, CFGetTypeID(number) != CFBooleanGetTypeID() else { return nil }
             return number.doubleValue
         }
-        func window(_ name: String) -> ClaudeUsage.Window? {
-            guard let value = limits?[name] as? [String: Any] else { return nil }
+        func window(_ name: String, in fields: [String: Any]?) -> ClaudeUsage.Window? {
+            guard let value = fields?[name] as? [String: Any] else { return nil }
             return ClaudeUsage.Window(usedPercentage: number(value["used_percentage"]), resetsAt: number(value["resets_at"]))
         }
-        let observation = ClaudeUsage.StoredObservation(schemaVersion: 1, observedAt: now.timeIntervalSince1970,
-                                                        fiveHour: window("five_hour"), sevenDay: window("seven_day"))
-        guard observation.observedAt.isFinite, observation.observedAt > 0 else { throw ClaudeUsage.ReadError.invalidObservation }
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.sortedKeys]
-        // Missing rate_limits is authoritative: replace any previous observation with unknown quota.
-        try writePrivate(encoder.encode(observation), to: fileURL)
+        let timestamp = now.timeIntervalSince1970
+        guard timestamp.isFinite, timestamp > 0 else { throw ClaudeUsage.ReadError.invalidObservation }
+        let marker = root["meterSource"] as? String
+        let desktop = marker == "desktop-cache" || marker == "desktop-event"
+        let fiveHour = window("five_hour", in: limits), sevenDay = window("seven_day", in: limits)
+        let expected = root["meterExpectedLimits"] as? [String: Any]
+        let expectedFiveHour = window("five_hour", in: expected)
+        let expectedSevenDay = window("seven_day", in: expected)
+        let observation = try withCaptureLock(fileURL: fileURL) {
+            var previous: ClaudeUsage.StoredObservation?
+            if marker == "desktop-cache", FileManager.default.fileExists(atPath: fileURL.path) {
+                previous = try ClaudeUsage.readStored(fileURL: fileURL, now: now)
+                let unchanged = previous?.fiveHour == fiveHour && previous?.sevenDay == sevenDay
+                let baselineMatches = expected != nil
+                    && previous?.fiveHour == expectedFiveHour && previous?.sevenDay == expectedSevenDay
+                // A newly loaded plugin has no successful baseline yet. Accept a
+                // whole cached snapshot only when every window can advance safely
+                // without discarding data or assuming an unobserved quota decrease.
+                let safeBootstrap = permitsCachedBootstrap(from: previous?.fiveHour, to: fiveHour, now: timestamp)
+                    && permitsCachedBootstrap(from: previous?.sevenDay, to: sevenDay, now: timestamp)
+                guard unchanged || baselineMatches || safeBootstrap else { throw BridgeError.supersededCache }
+            }
+            var observedAt = timestamp
+            if let previous, previous.source == .desktop, previous.observedAt <= timestamp,
+               previous.fiveHour == fiveHour, previous.sevenDay == sevenDay {
+                observedAt = previous.observedAt
+            }
+            let observation = ClaudeUsage.StoredObservation(schemaVersion: 1, observedAt: observedAt,
+                                                            fiveHour: fiveHour, sevenDay: sevenDay,
+                                                            source: desktop ? .desktop : nil,
+                                                            checkedAt: desktop ? timestamp : nil)
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.sortedKeys]
+            // Empty event/legacy input is authoritative. A cached empty value needs
+            // the same comparison as every other cached reading before it can clear.
+            try writePrivate(encoder.encode(observation), to: fileURL)
+            return observation
+        }
         let parts = [("5h", observation.fiveHour), ("week", observation.sevenDay)].compactMap { label, window -> String? in
             window?.usedPercentage.map { "\(label) \(Int($0.rounded()))% used" }
         }
         return parts.isEmpty ? "Claude usage unavailable" : "Claude · " + parts.joined(separator: " · ")
+    }
+
+    /// This orders comparable cached readings; it never merges windows or proves
+    /// server freshness. Events and a matching CAS baseline may still clear quota,
+    /// report a decrease, or correct a reset before the old window has expired.
+    private static func permitsCachedBootstrap(from previous: ClaudeUsage.Window?, to incoming: ClaudeUsage.Window?,
+                                                now: TimeInterval) -> Bool {
+        if incoming == previous { return true }
+        guard let incoming, let used = incoming.usedPercentage,
+              let reset = incoming.resetsAt else { return false }
+        guard let previous else { return reset > now }
+        guard let oldReset = previous.resetsAt else { return false }
+        if reset == oldReset, let oldUsed = previous.usedPercentage, used >= oldUsed { return true }
+        return oldReset <= now && reset > oldReset && reset > now
     }
 
     /// Explicit setup only. It never replaces another status line command.
@@ -123,6 +172,31 @@ enum ClaudeBridge {
         guard url.isFileURL else { throw BridgeError.unsafePath }
         let values = try? url.resourceValues(forKeys: [.isSymbolicLinkKey])
         if values?.isSymbolicLink == true { throw BridgeError.unsafePath }
+    }
+
+    /// Serialize read/compare/rename across all capture processes. A per-file lock
+    /// prevents a stale cache from passing its comparison before a newer event saves.
+    private static func withCaptureLock<T>(fileURL: URL, body: () throws -> T) throws -> T {
+        try rejectSymbolicLink(fileURL)
+        let directory = fileURL.deletingLastPathComponent()
+        try rejectSymbolicLink(directory)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true,
+                                               attributes: [.posixPermissions: 0o700])
+        let lockURL = directory.appendingPathComponent("." + fileURL.deletingPathExtension().lastPathComponent + ".lock")
+        let descriptor = open(lockURL.path, O_RDWR | O_CREAT | O_NOFOLLOW | O_CLOEXEC | O_NONBLOCK, S_IRUSR | S_IWUSR)
+        guard descriptor >= 0 else { throw BridgeError.writeFailed }
+        defer { close(descriptor) }
+        var info = stat()
+        guard fstat(descriptor, &info) == 0, (info.st_mode & S_IFMT) == S_IFREG,
+              fchmod(descriptor, S_IRUSR | S_IWUSR) == 0 else { throw BridgeError.unsafePath }
+        let deadline = ProcessInfo.processInfo.systemUptime + 1.5
+        while flock(descriptor, LOCK_EX | LOCK_NB) != 0 {
+            guard errno == EWOULDBLOCK || errno == EAGAIN || errno == EINTR else { throw BridgeError.writeFailed }
+            guard ProcessInfo.processInfo.systemUptime < deadline else { throw BridgeError.captureBusy }
+            usleep(10_000)
+        }
+        defer { _ = flock(descriptor, LOCK_UN) }
+        return try body()
     }
 
     /// Create the temporary file with mode 0600 before writing any bytes, then rename atomically.

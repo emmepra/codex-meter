@@ -4,6 +4,7 @@ import Darwin
 /// Installs the bundled, local-only plugin through Claude Code's own plugin manager.
 enum ClaudeDesktopBridge {
     private static let installQueue = DispatchQueue(label: "CodexMeter.ClaudeSetup", qos: .utility)
+    private static let pluginID = "codex-meter-claude@codex-meter-local"
     enum SetupError: LocalizedError {
         case missingResources, unsafeDestination, commandFailed, setupIncomplete
         var errorDescription: String? {
@@ -86,10 +87,25 @@ enum ClaudeDesktopBridge {
             // metadata with an old backup that could erase concurrent changes.
             configurationCommandAttempted = true
             try run(cli, ["plugin", "marketplace", "add", destination.path])
-            try run(cli, ["plugin", "install", "codex-meter-claude@codex-meter-local", "--scope", "user"])
-            // Reinstalling preserves a prior disabled entry. Explicit setup must
-            // enable our own user-scoped plugin before reporting success.
-            try run(cli, ["plugin", "enable", "codex-meter-claude@codex-meter-local", "--scope", "user"])
+            try run(cli, ["plugin", "install", pluginID, "--scope", "user"])
+            let pluginManifest = destination.appendingPathComponent("plugins/codex-meter-claude/.claude-plugin/plugin.json")
+            let installedMetadata = settings.deletingLastPathComponent().appendingPathComponent("plugins/installed_plugins.json")
+            let installedPlugins = readObject(installedMetadata)?["plugins"] as? [String: Any]
+            let entries = installedPlugins?[pluginID] as? [[String: Any]]
+            let userEntry = entries?.first { $0["scope"] as? String == "user" }
+            // Reinstall can leave an older version in the official registry.
+            // Compare only known versions; command output is not a state API.
+            if let bundledVersion = readObject(pluginManifest)?["version"] as? String, !bundledVersion.isEmpty,
+               let installedVersion = userEntry?["version"] as? String, !installedVersion.isEmpty,
+               installedVersion != bundledVersion {
+                try run(cli, ["plugin", "update", pluginID, "--scope", "user"])
+            }
+            // Enable returns a failure when already enabled. Reinstall also
+            // preserves a disabled entry, so consult the user setting first.
+            let enabledPlugins = readObject(settings)?["enabledPlugins"] as? [String: Any]
+            if enabledPlugins?[pluginID] as? Bool != true {
+                try run(cli, ["plugin", "enable", pluginID, "--scope", "user"])
+            }
         } catch {
             if configurationCommandAttempted { throw SetupError.setupIncomplete }
             try? files.removeItem(at: destination)
@@ -97,6 +113,12 @@ enum ClaudeDesktopBridge {
             if files.fileExists(atPath: previous.path) { try? files.moveItem(at: previous, to: destination) }
             throw error
         }
+    }
+
+    private static func readObject(_ url: URL) -> [String: Any]? {
+        guard let data = try? Data(contentsOf: url), data.count <= 4 * 1024 * 1024,
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
+        return object
     }
 
     private static func run(_ executable: URL, _ arguments: [String]) throws {

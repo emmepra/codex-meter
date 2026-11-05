@@ -9,6 +9,20 @@ enum MeterProvider: String, CaseIterable {
     var windowPreferenceKey: String { self == .codex ? "selectedWindow" : "claudeSelectedWindow" }
 }
 
+enum StatusBarProviders: String, CaseIterable {
+    case both
+    case codex
+    case claude
+
+    var title: String {
+        switch self {
+        case .both: return "Codex and Claude"
+        case .codex: return "Codex only"
+        case .claude: return "Claude only"
+        }
+    }
+}
+
 /// Owns provider selection and shared display preferences; usage stays in each store.
 @MainActor
 final class ProviderSelection: ObservableObject {
@@ -37,6 +51,13 @@ final class ProviderSelection: ObservableObject {
         }
     }
 
+    @Published var statusBarProviders: StatusBarProviders {
+        didSet {
+            defaults.set(statusBarProviders.rawValue, forKey: "statusBarProviders")
+            onChange?()
+        }
+    }
+
     @Published var iconOnly: Bool {
         didSet {
             defaults.set(iconOnly, forKey: "iconOnly")
@@ -48,6 +69,14 @@ final class ProviderSelection: ObservableObject {
 
     var activeStore: MeterStore { selectedProvider == .claude && claudeEnabled ? claude : codex }
     var enabledProviders: [MeterProvider] { claudeEnabled ? [.codex, .claude] : [.codex] }
+    var effectiveStatusBarProviders: StatusBarProviders { claudeEnabled ? statusBarProviders : .codex }
+    var visibleStatusProviders: [MeterProvider] {
+        switch effectiveStatusBarProviders {
+        case .both: return [.codex, .claude]
+        case .codex: return [.codex]
+        case .claude: return [.claude]
+        }
+    }
 
     init(codex: MeterStore? = nil, claude: MeterStore? = nil, defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -57,11 +86,17 @@ final class ProviderSelection: ObservableObject {
         claudeEnabled = enabled
         let savedProvider = defaults.string(forKey: "selectedProvider").flatMap(MeterProvider.init(rawValue:)) ?? .codex
         selectedProvider = savedProvider == .claude && !enabled ? .codex : savedProvider
+        statusBarProviders = defaults.string(forKey: "statusBarProviders").flatMap(StatusBarProviders.init(rawValue:)) ?? .both
         iconOnly = defaults.bool(forKey: "iconOnly")
         self.codex.iconOnly = iconOnly
         self.claude.iconOnly = iconOnly
         self.codex.onChange = { [weak self] in self?.storeChanged(.codex) }
         self.claude.onChange = { [weak self] in self?.storeChanged(.claude) }
+    }
+
+    func setStatusBarProviders(_ providers: StatusBarProviders) {
+        statusBarProviders = providers
+        if providers != .codex, !claudeEnabled { claudeEnabled = true }
     }
 
     func start() {

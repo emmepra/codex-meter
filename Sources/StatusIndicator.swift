@@ -1,5 +1,24 @@
 import AppKit
 
+/// Fixed identities, shared by the compact rings and the panel's usage bars.
+enum ProviderAccent {
+    case codex, claude
+
+    var color: NSColor {
+        NSColor(name: nil) { appearance in
+            let dark = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+            switch self {
+            case .codex:
+                return dark ? NSColor(srgbRed: 0.28, green: 0.80, blue: 0.69, alpha: 1)
+                    : NSColor(srgbRed: 0.08, green: 0.48, blue: 0.40, alpha: 1)
+            case .claude:
+                return dark ? NSColor(srgbRed: 0.94, green: 0.61, blue: 0.47, alpha: 1)
+                    : NSColor(srgbRed: 0.72, green: 0.33, blue: 0.22, alpha: 1)
+            }
+        }
+    }
+}
+
 /// Status-item snapshots temporarily change effectiveAppearance while drawing.
 /// Observe the settled appearance instead of feeding those changes back into
 /// another image assignment, which would trigger another snapshot indefinitely.
@@ -41,7 +60,7 @@ struct StatusIndicator {
         }
     }
 
-    static func image(used: Double?, uncertain: Bool, showPercentage: Bool, refreshing: Bool, resetCount: Int?, appearance: NSAppearance, unreadAnnouncement: Bool = false) -> NSImage {
+    static func image(used: Double?, uncertain: Bool, showPercentage: Bool, refreshing: Bool, resetCount: Int?, appearance: NSAppearance, unreadAnnouncement: Bool = false, accent: ProviderAccent? = nil) -> NSImage {
         let used = used.flatMap { $0.isFinite ? min(100, max(0, $0)) : nil }
         let hasDots = unreadAnnouncement || (resetCount ?? 0) > 0
         let width: CGFloat = hasDots ? 24 : 20
@@ -50,7 +69,8 @@ struct StatusIndicator {
             appearance.performAsCurrentDrawingAppearance {
                 let background = NSBezierPath(ovalIn: NSRect(x: centerX - 8.5, y: 1.5, width: 17, height: 17))
                 background.lineWidth = 1.4
-                NSColor.labelColor.withAlphaComponent(uncertain ? 0.45 : 0.22).setStroke()
+                let ringColor = accent?.color ?? .labelColor
+                ringColor.withAlphaComponent(uncertain ? 0.4 : (accent == nil ? 0.22 : 0.35)).setStroke()
                 background.stroke()
                 if let used, used > 0 {
                     let arc = NSBezierPath()
@@ -58,7 +78,7 @@ struct StatusIndicator {
                                   startAngle: 90, endAngle: CGFloat(90 - min(100, max(0, used)) * 3.6), clockwise: true)
                     arc.lineWidth = 1.5
                     arc.lineCapStyle = .round
-                    NSColor.labelColor.withAlphaComponent(uncertain ? 0.45 : 1).setStroke()
+                    ringColor.withAlphaComponent(uncertain ? 0.6 : 1).setStroke()
                     arc.stroke()
                 }
                 let centerText: String?

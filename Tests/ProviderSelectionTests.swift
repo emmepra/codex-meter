@@ -25,6 +25,8 @@ enum ProviderSelectionTests {
         let selection = ProviderSelection(defaults: defaults)
         precondition(!selection.claudeEnabled && selection.selectedProvider == .codex)
         precondition(selection.activeStore === selection.codex)
+        precondition(selection.statusBarProviders == .both && selection.effectiveStatusBarProviders == .codex)
+        precondition(selection.visibleStatusProviders == [.codex], "An existing Codex-only setup must retain its status item")
         precondition(MeterProvider.codex.windowPreferenceKey == "selectedWindow")
         precondition(MeterProvider.claude.windowPreferenceKey != MeterProvider.codex.windowPreferenceKey)
         selection.selectedProvider = .claude
@@ -68,6 +70,63 @@ enum ProviderSelectionTests {
         defaults.set(true, forKey: "claudeEnabled")
         let enabled = ProviderSelection(defaults: defaults)
         precondition(enabled.selectedProvider == .claude && enabled.activeStore === enabled.claude)
+        precondition(enabled.statusBarProviders == .both && enabled.visibleStatusProviders == [.codex, .claude],
+                     "Existing Claude monitoring defaults to both counters without a new preference")
+
+        let displaySuite = suite + ".display"
+        let displayDefaults = UserDefaults(suiteName: displaySuite)!
+        defer { displayDefaults.removePersistentDomain(forName: displaySuite) }
+        let display = ProviderSelection(defaults: displayDefaults)
+        display.start()
+        display.setStatusBarProviders(.claude)
+        precondition(display.claudeEnabled && display.claude.starts == 1)
+        precondition(display.statusBarProviders == .claude && display.effectiveStatusBarProviders == .claude)
+        precondition(display.visibleStatusProviders == [.claude])
+        precondition(display.enabledProviders == [.codex, .claude], "A display choice must not remove providers from the panel")
+        precondition(displayDefaults.string(forKey: "statusBarProviders") == "claude")
+        let restoredClaude = ProviderSelection(defaults: displayDefaults)
+        precondition(restoredClaude.claudeEnabled && restoredClaude.visibleStatusProviders == [.claude])
+
+        display.setStatusBarProviders(.codex)
+        precondition(display.visibleStatusProviders == [.codex])
+        precondition(display.claudeEnabled && display.claude.stops == 0,
+                     "Codex only changes the menu bar and must preserve Claude monitoring")
+        precondition(display.enabledProviders == [.codex, .claude])
+        display.refreshAll()
+        precondition(display.codex.refreshes == 1 && display.claude.refreshes == 1,
+                     "A hidden Claude counter must keep receiving updates")
+        let restoredCodex = ProviderSelection(defaults: displayDefaults)
+        precondition(restoredCodex.statusBarProviders == .codex && restoredCodex.visibleStatusProviders == [.codex])
+        precondition(restoredCodex.claudeEnabled)
+
+        display.setStatusBarProviders(.both)
+        precondition(display.visibleStatusProviders == [.codex, .claude])
+        let restoredBoth = ProviderSelection(defaults: displayDefaults)
+        precondition(restoredBoth.statusBarProviders == .both && restoredBoth.visibleStatusProviders == [.codex, .claude])
+        display.claudeEnabled = false
+        precondition(display.statusBarProviders == .both && display.effectiveStatusBarProviders == .codex)
+        precondition(display.visibleStatusProviders == [.codex])
+        display.setStatusBarProviders(.both)
+        precondition(display.claudeEnabled && display.visibleStatusProviders == [.codex, .claude],
+                     "Choosing both must enable Claude monitoring")
+
+        display.setStatusBarProviders(.claude)
+        display.claudeEnabled = false
+        precondition(display.statusBarProviders == .claude && display.visibleStatusProviders == [.codex],
+                     "Disabling Claude must fall back to a visible Codex counter")
+        let restoredDisabled = ProviderSelection(defaults: displayDefaults)
+        precondition(!restoredDisabled.claudeEnabled && restoredDisabled.statusBarProviders == .claude)
+        precondition(restoredDisabled.effectiveStatusBarProviders == .codex && restoredDisabled.visibleStatusProviders == [.codex])
+        restoredDisabled.claudeEnabled = true
+        precondition(restoredDisabled.visibleStatusProviders == [.claude], "Re-enabling monitoring restores the saved display choice")
+        display.setStatusBarProviders(.codex)
+        precondition(!display.claudeEnabled && display.visibleStatusProviders == [.codex])
+        display.stop()
+
+        displayDefaults.set(false, forKey: "claudeEnabled")
+        displayDefaults.set("invalid", forKey: "statusBarProviders")
+        let invalidPreference = ProviderSelection(defaults: displayDefaults)
+        precondition(invalidPreference.statusBarProviders == .both && invalidPreference.visibleStatusProviders == [.codex])
         print("Provider selection tests passed")
     }
 }

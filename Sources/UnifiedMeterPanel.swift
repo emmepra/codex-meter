@@ -88,7 +88,8 @@ private struct ProviderOverview: View {
                     .accessibilityLabel("\(percentage(used)) used\(faded ? ", last known reading" : "")")
             }
 
-            ConsumptionTrack(used: used, elapsed: nil, faded: faded)
+            ConsumptionTrack(used: used, elapsed: nil, faded: faded,
+                             accent: store.provider == .codex ? .codex : .claude)
                 .accessibilityHidden(true)
 
             if let entry = store.entry {
@@ -194,19 +195,24 @@ private struct ProviderOverview: View {
     }
 
     private var freshness: String {
-        guard let date = store.updatedAt else { return store.provider == .claude ? "No capture yet" : "Not updated yet" }
+        guard let date = store.freshnessDate else { return store.provider == .claude ? "No capture yet" : "Not updated yet" }
         let age = max(0, store.now.timeIntervalSince(date))
         let relative: String
         if age < 60 { relative = "just now" }
         else if age < 3_600 { relative = "\(Int(age / 60)) min ago" }
         else if age < 86_400 { relative = "\(Int(age / 3_600)) h ago" }
         else { relative = "\(Int(age / 86_400)) d ago" }
-        return (store.provider == .claude ? "Captured " : "Updated ") + relative
+        let label = store.syncsClaudeDesktop ? "Synced " : (store.provider == .claude ? "Captured " : "Updated ")
+        return label + relative
     }
 
     private var freshnessHelp: String {
         let timestamp = store.updatedAt?.formatted(Date.FormatStyle(date: .complete, time: .shortened).locale(overviewLocale))
         if store.provider == .claude {
+            if store.syncsClaudeDesktop, let checked = store.claudeCheckedAt {
+                let time = checked.formatted(Date.FormatStyle(date: .complete, time: .shortened).locale(overviewLocale))
+                return "Synced with Claude Code's local session: \(time).\nLast quota observation: \(timestamp ?? "unavailable").\nClaude may return cached values. Sync does not poll the server."
+            }
             return timestamp.map { "Captured from Claude Code: \($0).\nMeter reads the latest local capture. Capture time does not guarantee a new server measurement." }
                 ?? "No Claude Code capture received. Choose Set Up Claude in Options if needed, then open or reload a local Code session."
         }
