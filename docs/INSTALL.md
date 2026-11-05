@@ -12,7 +12,7 @@ The downloaded app does not require Xcode, a Swift compiler or a source checkout
 
 ## Login & privacy
 
-Meter uses the official Codex CLI login; you do not give the project an account, password or API key. It reads quota and reset details through a short-lived local CLI process and has no Meter backend or telemetry. Codex usage and up to 30 minutes of recent credit samples stay in memory. Display and provider preferences, automatic-update and reset-post preferences plus the last-read post ID are saved; Codex CLI manages its own network access, authentication and logs. The optional Claude bridge saves one sanitized quota snapshot locally, as described below. See the [README's privacy details](../README.md#login--privacy). The CLI account can differ from the Codex desktop account.
+Meter uses the official Codex CLI login; you do not give the project an account, password or API key. It reads quota and reset details through a short-lived local CLI process and has no Meter backend or telemetry. Codex usage and up to 30 minutes of recent credit samples stay in memory. Display and provider preferences, automatic-update and reset-post preferences plus the last-read post ID are saved; Codex CLI manages its own network access, authentication and logs. The optional Claude bridge saves one sanitized quota snapshot locally, as described below. See the [README's privacy details](../README.md#privacy). The CLI account can differ from the Codex desktop account.
 
 ## Install Codex CLI and sign in
 
@@ -92,13 +92,13 @@ The app uses ad hoc signing for local use and is not notarized. Build output is 
 
 Gatekeeper may block the downloaded app because it has no Developer ID signature or notarization. If you trust the copy downloaded from this repository's release, first try opening it, then open **System Settings → Privacy & Security**. Find the blocked-app notice, choose **Open Anyway**, and confirm **Open** in the next prompt. See [Apple's guide to safely opening apps](https://support.apple.com/en-us/102445) for the current instructions.
 
-Codex Meter appears in the menu bar without a Dock icon. Click the small ring to open **Usage**; the used percentage is centered inside the ring, and **Ring only** hides that number. The 300-point panel always shows one compact row per enabled service: Codex, plus Claude when **Monitor Claude** is on. Each row includes its name, period, used quota and bar, remaining share and reset countdown. No service tabs are needed. Open a row's **Details** for budgets and pace; at most one service's Details stays open. Codex Details also contains credits, banked resets and Tibo posts. Compact cues remain visible when attention is needed.
+Codex Meter appears in the menu bar without a Dock icon. Click the small ring to open the overview; the used percentage is centered inside the ring, and **Ring only** hides that number. The 300-point panel always shows one compact row per enabled service: Codex, plus Claude when **Monitor Claude** is on. Each row includes its name, period, used quota and bar, remaining share and reset countdown. No service tabs are needed. Open a row's **Details** for budgets and pace; at most one service's Details stays open. Codex Details also contains credits, banked resets and Tibo posts. Compact cues remain visible when attention is needed.
 
 Each row shows relative freshness with **Updated** for Codex, **Synced** for a Desktop bridge check, or **Captured** for terminal and older Claude snapshots. Hover for exact check/observation times and the source explanation. These local times are separate from the quota window's scheduled reset.
 
 Missing quota is shown as unavailable, never as zero. A reported zero remains a valid reading. Out-of-date values and unconfirmed resets are marked explicitly and pause estimates; one service's state does not invalidate the other. Use the shared header's refresh button to read Codex and the latest local Claude capture.
 
-Credit pace uses a positive net balance decrease over up to 30 minutes of continuous readings, after at least 15 minutes and three samples with a fresh latest reading. Observations are independent of quota usage; reaching 100% or returning to included quota does not restart them. Details shows **Estimating…** while history is insufficient or **Awaiting balance updates** when the rolling window has no positive decrease. Restarting Meter, changing account, a recharge, long gap or failed or missing balance read restarts the observations. See [Credits](../README.md#credits) for scope and calculation limits.
+See [Credits](USAGE.md#credits) for balance states, recent-consumption calculations, account scope and estimate limits.
 
 **Banked resets** in Codex Details shows banked resets for the Codex CLI account. A fresh positive count is green; zero is red. Out-of-date counts remain orange, and **Unavailable** is distinct from zero.
 
@@ -122,7 +122,7 @@ The **Options** (`…`) menu contains:
 
 **Menu Bar** saves the ring display independently of monitoring. **Codex and Claude** and **Claude only** enable Claude monitoring when selected; **Codex only** leaves it running if already enabled. The panel continues to show every monitored service. Turning **Monitor Claude** off stops Meter's Claude reads and returns the rings to Codex.
 
-When a service supplies more than one quota window, click its visible period label to choose a window. Codex and Claude remember their choices separately. Read the [README](../README.md) for the budget calculations and their limits.
+When a service supplies more than one quota window, click its visible period label to choose a window. Codex and Claude remember their choices separately. Read the [statistics guide](USAGE.md#what-the-statistics-mean) for budget calculations and their limits.
 
 ## Optional Claude Code support
 
@@ -182,9 +182,7 @@ To hide only Claude's ring, choose **Menu Bar → Codex only**; monitoring and i
 
 ### Reset posts from Tibo
 
-**Check Tibo’s Reset Posts** in Options is on by default. Meter reads the public RSS feed at `https://x.noodl3.net/thsottiaux/rss` at launch and every 30 minutes, with a due check after wake. This is a third-party Nitter instance, not an official X/OpenAI service; it may be unavailable, delayed or incomplete. The source sees ordinary connection metadata such as the IP address, but Meter sends no account data, quota, cookies or credentials. No X API key, Python runtime or new library is required.
-
-Codex Details shows a single compact link for the newest matching post in the last seven days. It matches the standalone word **reset**, case-insensitively, in the post title/text after removing URLs; it checks the author and post link and ignores other authors and reposts. Recent posts show **Today** or **Yesterday**. Hover for the full date, time and excerpt; click to open the original post on X. A keyword match does not confirm a reset on your account. Post contents stay in memory; only the last-read post ID and the feature preference are saved. Opening the post, using the small **Mark as seen** checkmark on its row, or choosing **Mark Tibo Post as Read** clears the amber dot across restarts. A newer matching post lights it again. The dot is also acknowledged if two fresh successful quota reads, observed after detecting the post and at most ten minutes apart, show an increase in available resets. The link stays visible. This is a dismissal heuristic, not confirmation that the post caused that reset. An initial positive count, missing/failed reads or a long gap do not establish a connection; the in-memory comparison restarts. Cached matches are marked if a refresh fails, and **Tibo posts unavailable** distinguishes a failed source from no recent match. Disable the option to stop fetching and hide the row.
+Optional Tibo notices remain in Codex Details, with an unread cue in the overview. The [usage guide](USAGE.md#reset-posts-from-tibo) covers the third-party feed, keyword matching, privacy, cached states and dismissal behavior. A matching post does not confirm an account reset.
 
 ## Check a problem
 
@@ -235,7 +233,7 @@ Codex CLI updates are separate. Use the package manager you originally chose: `b
 
 With Codex alone, the menu bar shows the used quota as a number inside the ring (the percent sign is omitted for readability). Two independent corner dots surround the Codex ring: green at top left for fresh positive reset availability, and amber at bottom right for an unread Tibo post mentioning **reset**. App updates do not light a dot. They can appear together. Missing, zero or stale reset counts never produce a green dot. Options shows **Install <version>…** when a release is available. Credits add no number or indicator to the menu bar; the tooltip includes the exact reset count and credit balance when available. Ring-only mode hides the number, retaining the reset and unread-post indicators.
 
-The shared **Usage** header contains refresh and Options. Each service row has its own **Details** control and relative **Updated**, **Synced** or **Captured** time; hover for exact local times and the source explanation. Budget values use the system primary text color for light and dark appearance. The app bundle includes a dedicated meter icon, also used in update dialogs.
+The overview header shows **Codex Meter** beside the app mark, with refresh and Options. Each service row has its own **Details** control and relative **Updated**, **Synced** or **Captured** time; hover for exact local times and the source explanation. Budget values use the system primary text color for light and dark appearance. The app bundle includes a dedicated meter icon, also used in update dialogs.
 
 **Automatically Check for Updates** is on by default. It checks the latest stable GitHub release at app launch and then at most every six hours while running, including after wake. Disable it in Options for manual-only checks. Automatic checks are silent, including network failures. **Check for Updates…** still checks immediately and displays the result. It sends no quota or account data. From version 0.5.3, **Check for Updates…** or **Install <version>…** opens the native Sparkle update window. Confirm the download and installation there; Sparkle verifies the signed feed and archive, replaces the app and relaunches it. Installation always requires your confirmation.
 

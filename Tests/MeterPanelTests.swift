@@ -296,8 +296,11 @@ struct MeterPanelTests {
         let collapsedSize = try renderOverview("collapsed-dark")
         _ = try renderOverview("collapsed-light", scheme: .light)
         let codexDetailsSize = try renderOverview("codex-details", expanded: .codex)
+        let codexDetailsLightSize = try renderOverview("codex-details-light", expanded: .codex, scheme: .light)
         let claudeDetailsSize = try renderOverview("claude-details", expanded: .claude)
         precondition(codexDetailsSize.height > collapsedSize.height && claudeDetailsSize.height > collapsedSize.height)
+        precondition(abs(codexDetailsSize.height - codexDetailsLightSize.height) < 0.5,
+                     "Appearance must not change the grouped detail geometry")
         precondition(collapsedSize.height < 340, "The default overview must stay compact")
         let appearance = NSAppearance(named: .darkAqua)!
         let codexRing = StatusIndicator.image(used: 25, uncertain: false, showPercentage: true,

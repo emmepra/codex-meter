@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+  <title id="title">Codex Meter mark</title>
+  <desc id="desc">Two parallel, overlapping meter rings in teal and terracotta. An independent geometric project mark.</desc>
+<g fill="none" stroke-width="68">
+  <g stroke="#87928B" stroke-opacity="0.34">
+<circle cx="354" cy="512" r="190"/>
+<circle cx="670" cy="512" r="190"/>
+  </g>
+  <g stroke-linecap="round">
+<path d="M 354.000 322.000 A 190 190 0 1 1 181.802 592.297" stroke="#48CCB0"/>
+<path d="M 819.722 395.024 A 190 190 0 1 1 500.709 425.742" stroke="#EF9B78"/>
+  </g>
+</g>
+</svg>

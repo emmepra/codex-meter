@@ -1,6 +1,6 @@
 # Provider design
 
-## 0.7.1 scope
+## Product scope
 
 Version 0.7.0 adds optional Claude quota to Codex Meter, keeping the existing repository, application name, bundle identity, update path and native AppKit/SwiftUI stack. Version 0.7.1 adds automatic local Desktop sync, provider colors and a saved choice of menu-bar rings.
 
@@ -10,7 +10,7 @@ When both rings are visible, Codex stays on the left and Claude on the right; pr
 
 Fixed teal for Codex and terracotta for Claude carry through from the rings to the panel bars; digits stay neutral and adapt to appearance.
 
-The 300-point panel has a shared **Usage** header and one compact row per enabled service. Codex and Claude stay visible together; disabling Claude leaves a single Codex row. Each row shows its name, period, used percentage and bar, remaining quota and reset countdown. The period label opens a menu when multiple source windows exist; each service remembers its choice. **Updated**, **Synced** and **Captured** identify Codex reads, Desktop bridge checks and terminal/older captures, with exact times and source explanation in help text.
+The visual refresh in the current source keeps the panel at 300 points, with subtly grouped service cards and a **Codex Meter** header. Its 18-point app mark matches the banner, and 24-point quota digits strengthen the reading hierarchy. Codex and Claude stay visible together; disabling Claude leaves a single Codex card. Each shows its name, period, used percentage and bar, remaining quota and reset countdown. The period label opens a menu when multiple source windows exist; each service remembers its choice. **Updated**, **Synced** and **Captured** identify Codex reads, Desktop bridge checks and terminal/older captures, with exact times and source explanation in help text.
 
 Each provider has a **Details** disclosure, with at most one expanded at a time. Budget and pace estimates belong there. Credit balances, banked resets and Tibo content appear only in Codex Details, while compact cues surface conditions needing attention. Ring display preferences do not change these rows or their data sources.
 

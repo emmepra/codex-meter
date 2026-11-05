@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="540" viewBox="0 0 1600 540" role="img" aria-labelledby="title desc">
+  <title id="title">Codex Meter — Both limits. One glance.</title>
+  <desc id="desc">Codex and Claude Code quota in one native macOS app. Abstract twin rings; no account data or interface screenshot.</desc>
+  <rect width="1600" height="540" fill="#192426"/>
+  <rect x="88" y="102" width="48" height="5" rx="2.5" fill="#48CCB0"/>
+  <rect x="146" y="102" width="28" height="5" rx="2.5" fill="#EF9B78"/>
+  <g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">
+    <text x="82" y="216" fill="#F6F2E9" font-size="100" font-weight="600">Codex Meter</text>
+    <text x="88" y="298" fill="#F6F2E9" font-size="47">Both limits. One glance.</text>
+    <text x="91" y="385" fill="#A8B7B0" font-size="24">Codex + Claude Code · Native for macOS</text>
+  </g>
+  <g transform="translate(903 -75) scale(0.673828125)">
+<g fill="none" stroke-width="68">
+  <g stroke="#87928B" stroke-opacity="0.34">
+<circle cx="354" cy="512" r="190"/>
+<circle cx="670" cy="512" r="190"/>
+  </g>
+  <g stroke-linecap="round">
+<path d="M 354.000 322.000 A 190 190 0 1 1 181.802 592.297" stroke="#48CCB0"/>
+<path d="M 819.722 395.024 A 190 190 0 1 1 500.709 425.742" stroke="#EF9B78"/>
+  </g>
+</g>
+  </g>
+</svg>

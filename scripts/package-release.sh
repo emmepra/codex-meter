@@ -24,7 +24,7 @@ APP_DIR="$BUILD_DIR/Codex Meter.app"
 BINARY="$APP_DIR/Contents/MacOS/CodexMeter"
 [[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP_DIR/Contents/Info.plist")" == "$VERSION" ]]
 [[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIconFile' "$APP_DIR/Contents/Info.plist")" == AppIcon ]]
-[[ -s "$APP_DIR/Contents/Resources/AppIcon.icns" && -s "$APP_DIR/Contents/Resources/OpenAI.png" ]]
+[[ -s "$APP_DIR/Contents/Resources/AppIcon.icns" && -s "$APP_DIR/Contents/Resources/MeterMark.png" ]]
 [[ "$(lipo -archs "$BINARY")" == arm64 ]]
 codesign --verify --deep --strict "$APP_DIR"
 
@@ -36,8 +36,11 @@ mkdir -p "$STAGING_DIR/archive" "$STAGING_DIR/unpacked" .build/release
 # Fresh staging contains only the app and public installation/provenance files.
 ditto --norsrc --noextattr "$APP_DIR" "$STAGING_DIR/archive/Codex Meter.app"
 cp LICENSE "$STAGING_DIR/archive/LICENSE"
-cp Resources/README.md "$STAGING_DIR/archive/ASSET-NOTICES.md"
-sed "s|](../README.md)|](https://github.com/emmepra/codex-meter/blob/v$VERSION/README.md)|g" \
+DOC_SOURCE="https://github.com/emmepra/codex-meter/blob/$(git rev-parse HEAD)"
+sed "s|](../docs/BRAND.md|]($DOC_SOURCE/docs/BRAND.md|g" \
+  Resources/README.md > "$STAGING_DIR/archive/ASSET-NOTICES.md"
+sed -e "s|](../README.md|]($DOC_SOURCE/README.md|g" \
+  -e "s|](USAGE.md|]($DOC_SOURCE/docs/USAGE.md|g" \
   docs/INSTALL.md > "$STAGING_DIR/archive/INSTALL.md"
 {
   printf 'Codex Meter %s\nSource: https://github.com/emmepra/codex-meter\n' "$VERSION"
