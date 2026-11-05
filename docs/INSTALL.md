@@ -126,7 +126,7 @@ When a service supplies more than one quota window, click its visible period lab
 
 ## Optional Claude Code support
 
-Claude support is optional in 0.7.0. Sign in through Claude Code's own flow. Meter connects to local Code sessions in two ways: a small plugin for Claude Desktop's **Code** tab, or a status-line command for terminal Claude Code. Neither route reads OAuth tokens or starts model tasks. General Claude chat, Cowork and remote/cloud sessions are outside this integration.
+Claude support is optional. Sign in through Claude Code's own flow. Meter connects to local Code sessions in two ways: a small plugin for Claude Desktop's **Code** tab, or a status-line command for terminal Claude Code. Neither route reads OAuth tokens or starts model tasks. General Claude chat, Cowork and remote/cloud sessions are outside this integration.
 
 Install Meter in a stable Applications location first. Enable **Options → Monitor Claude**, then choose **Set Up Claude… → Enable Bridge**. Setup selects the Desktop plugin when a compatible Desktop installation is available, with the terminal status line as a fallback. The setup result identifies the configured route.
 
@@ -139,6 +139,8 @@ Alternatively, run Meter's executable to configure the bridge:
 Adjust the path for a different install location, such as `~/Applications`. Keep the app at this path, or rerun setup after moving it. Setup does not sign in, send prompts or request model responses.
 
 ### Desktop Code sessions
+
+**Upgrading from 0.7.0:** after updating Meter, choose **Set Up Claude…** once to install bridge 0.1.1, then run `/reload-plugins` in an open Code session or start a new local session. Updating the app alone does not replace the external plugin. Existing authentication and unrelated configuration are retained.
 
 The Desktop route installs `codex-meter-claude@codex-meter-local` at user scope from a local marketplace bundled with Meter. It uses the official [Claude Code mods interface](https://code.claude.com/docs/en/plugins/mods/overview), which runs inside a local Code session. Bridge 0.1.1 reads cached session usage at startup and on attach, receives quota-measurement events, and checks the cache every 60 seconds using a [session timer](https://code.claude.com/docs/en/plugins/mods/api#run-work-in-the-background). It starts no model turns and contains no prompt, transcript, authentication or direct network request code.
 

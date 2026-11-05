@@ -1,8 +1,8 @@
 # Provider design
 
-## 0.7.0 scope
+## 0.7.1 scope
 
-Version 0.7.0 adds optional Claude quota to Codex Meter, keeping the existing repository, application name, bundle identity, update path and native AppKit/SwiftUI stack.
+Version 0.7.0 adds optional Claude quota to Codex Meter, keeping the existing repository, application name, bundle identity, update path and native AppKit/SwiftUI stack. Version 0.7.1 adds automatic local Desktop sync, provider colors and a saved choice of menu-bar rings.
 
 One menu-bar item opens one panel. **Monitor Claude** enables Claude reads and its panel row independently of which rings are shown. **Options → Menu Bar** persists **Codex and Claude**, **Codex only** or **Claude only**. Choosing a mode containing Claude enables its monitoring; choosing Codex only does not disable it. Turning monitoring off falls back to Codex. The panel always shows the monitored services.
 
