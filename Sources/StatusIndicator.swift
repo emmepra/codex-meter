@@ -30,6 +30,17 @@ final class StatusAppearanceObserver {
 }
 
 struct StatusIndicator {
+    /// Names belong in the panel and tooltip; fixed provider order keeps the bar compact.
+    static func combined(codex: NSImage, claude: NSImage) -> NSImage {
+        let gap: CGFloat = 4
+        let width = codex.size.width + claude.size.width + gap
+        return NSImage(size: NSSize(width: width, height: 20), flipped: false) { _ in
+            codex.draw(at: .zero, from: .zero, operation: .sourceOver, fraction: 1)
+            claude.draw(at: NSPoint(x: codex.size.width + gap, y: 0), from: .zero, operation: .sourceOver, fraction: 1)
+            return true
+        }
+    }
+
     static func image(used: Double?, uncertain: Bool, showPercentage: Bool, refreshing: Bool, resetCount: Int?, appearance: NSAppearance, unreadAnnouncement: Bool = false) -> NSImage {
         let used = used.flatMap { $0.isFinite ? min(100, max(0, $0)) : nil }
         let hasDots = unreadAnnouncement || (resetCount ?? 0) > 0

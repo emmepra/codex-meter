@@ -11,6 +11,21 @@ struct MeterPanelTests {
         precondition(postDateLabel(dateNow, now: dateNow, calendar: dateCalendar) == "Today")
         precondition(postDateLabel(dateNow.addingTimeInterval(-86400), now: dateNow, calendar: dateCalendar) == "Yesterday")
         precondition(postDateLabel(dateNow.addingTimeInterval(-172800), now: dateNow, calendar: dateCalendar) != "Yesterday")
+        let fixturePreferences = UserDefaults(suiteName: "CodexMeter.OverviewTests")!
+        fixturePreferences.removePersistentDomain(forName: "CodexMeter.OverviewTests")
+        let originalClaudeWindow = UserDefaults.standard.object(forKey: "claudeSelectedWindow")
+        defer {
+            fixturePreferences.removePersistentDomain(forName: "CodexMeter.OverviewTests")
+            if let originalClaudeWindow { UserDefaults.standard.set(originalClaudeWindow, forKey: "claudeSelectedWindow") }
+            else { UserDefaults.standard.removeObject(forKey: "claudeSelectedWindow") }
+        }
+        func meterView(store: MeterStore, announcements: ResetAnnouncements? = nil,
+                       staticPreview: Bool = false) -> UnifiedMeterPanel {
+            let selection = ProviderSelection(codex: store, defaults: fixturePreferences)
+            selection.claudeEnabled = false
+            return UnifiedMeterPanel(selection: selection, staticPreview: staticPreview,
+                                     announcements: announcements, expandedProvider: .codex)
+        }
         let store = MeterStore()
         let originalIconOnly = store.iconOnly
         let originalSelectedID = store.selectedID
@@ -60,10 +75,10 @@ struct MeterPanelTests {
         store.updatedAt = now
 
         func render(_ name: String) throws {
-            let view = NSHostingView(rootView: MeterPanel(store: store)
+            let view = NSHostingView(rootView: meterView(store: store)
                 .background(Color(nsColor: .windowBackgroundColor)))
             let size = view.fittingSize
-            precondition(size.width == 270 && size.height > 0)
+            precondition(size.width == 300 && size.height > 0)
             view.frame = NSRect(origin: .zero, size: size)
             view.layoutSubtreeIfNeeded()
             let bitmap = view.bitmapImageRepForCachingDisplay(in: view.bounds)!
@@ -100,7 +115,7 @@ struct MeterPanelTests {
                         ".build/corner-dots-\(appearanceName.rawValue)-\(resetAvailable)-\(unread).png"))
                 }
             }
-            let view = NSHostingView(rootView: MeterPanel(store: store)
+            let view = NSHostingView(rootView: meterView(store: store)
                 .environment(\.colorScheme, appearanceName == .darkAqua ? .dark : .light)
                 .background(Color(nsColor: .windowBackgroundColor)))
             view.appearance = appearance
@@ -111,7 +126,7 @@ struct MeterPanelTests {
             try bitmap.representation(using: .png, properties: [:])!.write(to: URL(fileURLWithPath:
                 ".build/panel-\(appearanceName.rawValue).png"))
         }
-        // Reproducible README preview: no network, account data or real post text.
+        // Codex details with synthetic credits and an announcement; no network or account data.
         let demoPreferences = UserDefaults(suiteName: "CodexMeter.SyntheticPreview")!
         demoPreferences.removePersistentDomain(forName: "CodexMeter.SyntheticPreview")
         defer { demoPreferences.removePersistentDomain(forName: "CodexMeter.SyntheticPreview") }
@@ -123,14 +138,14 @@ struct MeterPanelTests {
             try observeCredit(Double(900 - index * 10), at: now.addingTimeInterval(Double(index * 300 - 1800)), reset: 1_800_007_200)
         }
         precondition(store.creditBalanceText == "840" && store.creditInUse)
-        let demo = MeterPanel(store: store, announcements: demoAnnouncements, staticPreview: true)
+        let demo = meterView(store: store, announcements: demoAnnouncements, staticPreview: true)
             .environment(\.colorScheme, .dark)
             .background(Color(red: 0.12, green: 0.12, blue: 0.12))
         // Render SwiftUI directly at 4x instead of enlarging an offscreen view cache.
         let renderer = ImageRenderer(content: demo)
         renderer.scale = 4
         let demoBitmap = NSBitmapImageRep(cgImage: renderer.cgImage!)
-        try demoBitmap.representation(using: .png, properties: [:])!.write(to: URL(fileURLWithPath: ".build/readme-demo.png"))
+        try demoBitmap.representation(using: .png, properties: [:])!.write(to: URL(fileURLWithPath: ".build/credits-with-announcement.png"))
         store.creditPace.reset()
         store.error = "Could not read usage limits. Try again shortly."
         try render("stale")
@@ -168,7 +183,7 @@ struct MeterPanelTests {
         precondition(store.creditRateText == "120 cr/h")
         precondition(store.creditRunwayText == "≈7 h")
         try render("credits")
-        let creditPreview = ImageRenderer(content: MeterPanel(store: store, staticPreview: true)
+        let creditPreview = ImageRenderer(content: meterView(store: store, staticPreview: true)
             .environment(\.colorScheme, .dark)
             .background(Color(red: 0.12, green: 0.12, blue: 0.12)))
         creditPreview.scale = 4
@@ -231,10 +246,115 @@ struct MeterPanelTests {
         precondition(store.creditBalanceText == "960" && store.creditRate != nil && store.creditInUse)
         try observeCredit(0, at: store.now.addingTimeInterval(1), reset: pauseReset)
         precondition(store.creditBalanceText == "0" && store.creditRunwayText == "Exhausted" && !store.creditInUse)
+        try render("credit-zero")
         store.snapshot = try snapshot(#", "meterCreditScope":"different-account""#,
             quotaFields: #""rateLimits":{"primary":{"usedPercent":100},"credits":{"hasCredits":true,"unlimited":false,"balance":"500"}}"#)
         store.observeCredits(at: store.now.addingTimeInterval(2))
         precondition(store.creditRate == nil && !store.creditInUse)
+        // Unified UI: independent captures and failures, with Codex-only data scoped correctly.
+        let fixtureDirectory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: fixtureDirectory) }
+        let fixture = fixtureDirectory.appendingPathComponent("claude-usage.json")
+        let received = Date().addingTimeInterval(-30)
+        let payload: [String: Any] = ["rate_limits": [
+            "five_hour": ["used_percentage": 35, "resets_at": received.timeIntervalSince1970 + 7200],
+            "seven_day": ["used_percentage": 62, "resets_at": received.timeIntervalSince1970 + 345600]
+        ]]
+        try ClaudeBridge.capture(input: JSONSerialization.data(withJSONObject: payload), fileURL: fixture, now: received)
+        let claude = MeterStore(provider: .claude, claudeFileURL: fixture)
+        claude.selectedID = "claude/primary"
+        claude.refresh()
+        precondition(abs(claude.updatedAt!.timeIntervalSince(received)) < 0.001,
+                     "Rereading the file must not refresh its capture time")
+        precondition(claude.entry?.window.usedPercent == 35 && claude.credits == nil)
+        let preferences = UserDefaults(suiteName: "CodexMeter.UnifiedPreview")!
+        preferences.removePersistentDomain(forName: "CodexMeter.UnifiedPreview")
+        defer { preferences.removePersistentDomain(forName: "CodexMeter.UnifiedPreview") }
+        let codex = MeterStore()
+        codex.now = received
+        codex.updatedAt = received
+        codex.snapshot = try UsageSnapshot(data: JSONSerialization.data(withJSONObject: [
+            "rateLimits": ["primary": ["usedPercent": 25, "windowDurationMins": 300,
+                "resetsAt": received.timeIntervalSince1970 + 3600]],
+            "rateLimitResetCredits": ["availableCount": 3]
+        ]))
+        let selection = ProviderSelection(codex: codex, claude: claude, defaults: preferences)
+        selection.claudeEnabled = true
+        func renderOverview(_ name: String, expanded: MeterProvider? = nil,
+                            scheme: ColorScheme = .dark) throws -> CGSize {
+            let preview = UnifiedMeterPanel(selection: selection, staticPreview: true,
+                                           expandedProvider: expanded)
+                .environment(\.colorScheme, scheme)
+                .background(scheme == .dark ? Color(red: 0.12, green: 0.12, blue: 0.12) : Color.white)
+            let renderer = ImageRenderer(content: preview)
+            renderer.scale = 3
+            let bitmap = NSBitmapImageRep(cgImage: renderer.cgImage!)
+            precondition(bitmap.pixelsWide == 900)
+            try bitmap.representation(using: .png, properties: [:])!.write(to: URL(fileURLWithPath: ".build/overview-\(name).png"))
+            return CGSize(width: CGFloat(bitmap.pixelsWide) / 3, height: CGFloat(bitmap.pixelsHigh) / 3)
+        }
+        let collapsedSize = try renderOverview("collapsed-dark")
+        _ = try renderOverview("collapsed-light", scheme: .light)
+        let codexDetailsSize = try renderOverview("codex-details", expanded: .codex)
+        let claudeDetailsSize = try renderOverview("claude-details", expanded: .claude)
+        precondition(codexDetailsSize.height > collapsedSize.height && claudeDetailsSize.height > collapsedSize.height)
+        precondition(collapsedSize.height < 340, "The default overview must stay compact")
+        let appearance = NSAppearance(named: .darkAqua)!
+        let codexRing = StatusIndicator.image(used: 25, uncertain: false, showPercentage: true,
+            refreshing: false, resetCount: 3, appearance: appearance)
+        let claudeRing = StatusIndicator.image(used: 35, uncertain: false, showPercentage: true,
+            refreshing: false, resetCount: nil, appearance: appearance)
+        let combined = StatusIndicator.combined(codex: codexRing, claude: claudeRing)
+        precondition(combined.size.height == 20 && combined.size.width == 48)
+        for name in [NSAppearance.Name.aqua, .darkAqua] {
+            let appearance = NSAppearance(named: name)!
+            for (state, usage, uncertain, ringOnly) in [("fresh", 100.0 as Double?, false, false),
+                ("stale", 35.0, true, false), ("unknown", nil, false, false), ("ring-only", 35.0, false, true)] {
+                let left = StatusIndicator.image(used: 25, uncertain: false, showPercentage: !ringOnly,
+                    refreshing: false, resetCount: 3, appearance: appearance, unreadAnnouncement: true)
+                let right = StatusIndicator.image(used: usage, uncertain: uncertain,
+                    showPercentage: !ringOnly && !uncertain, refreshing: false, resetCount: nil, appearance: appearance)
+                let icon = StatusIndicator.combined(codex: left, claude: right)
+                precondition(icon.size == NSSize(width: 48, height: 20))
+                let bitmap = NSBitmapImageRep(data: icon.tiffRepresentation!)!
+                try bitmap.representation(using: .png, properties: [:])!.write(to: URL(fileURLWithPath:
+                    ".build/compact-status-\(name.rawValue)-\(state).png"))
+            }
+        }
+        let demonstration = VStack(spacing: 8) {
+            HStack {
+                Spacer()
+                Image(nsImage: combined)
+            }.padding(.horizontal, 14).frame(height: 28).background(Color.white.opacity(0.06))
+            UnifiedMeterPanel(selection: selection, staticPreview: true)
+        }.environment(\.colorScheme, .dark).background(Color(red: 0.12, green: 0.12, blue: 0.12))
+        let demoRenderer = ImageRenderer(content: demonstration)
+        demoRenderer.scale = 3
+        let demoImage = NSBitmapImageRep(cgImage: demoRenderer.cgImage!)
+        let overviewDemo = demoImage.representation(using: .png, properties: [:])!
+        try overviewDemo.write(to: URL(fileURLWithPath: ".build/unified-provider-demo.png"))
+        try overviewDemo.write(to: URL(fileURLWithPath: ".build/readme-demo.png"))
+        claude.now = received.addingTimeInterval(601)
+        precondition(claude.stale && !codex.stale && claude.uncertain)
+        _ = try renderOverview("claude-stale", expanded: .claude)
+        claude.error = "Synthetic Claude failure"
+        precondition(!codex.stale && codex.statusResetCount == 3)
+        claude.error = nil
+        claude.now = received
+        claude.selectedID = "claude/secondary"
+        precondition(claude.entry?.window.usedPercent == 62 && codex.entry?.bucketId == "codex")
+        let unknown = try ClaudeBridge.capture(input: Data("{}".utf8), fileURL: fixture, now: Date())
+        precondition(unknown == "Claude usage unavailable")
+        claude.refresh()
+        precondition(claude.entry == nil, "Missing Claude windows must clear earlier values")
+        _ = try renderOverview("claude-unknown")
+        try FileManager.default.removeItem(at: fixture)
+        claude.refresh()
+        precondition(claude.stale && !codex.stale)
+        selection.claudeEnabled = false
+        precondition(selection.activeStore === codex)
+        let singleSize = try renderOverview("codex-only")
+        precondition(singleSize.height < collapsedSize.height)
         print("Meter panel state and synthetic rendering tests passed")
     }
 }

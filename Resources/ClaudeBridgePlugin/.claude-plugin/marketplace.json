@@ -1,0 +1,11 @@
+{
+  "name": "codex-meter-local",
+  "owner": { "name": "Codex Meter" },
+  "plugins": [
+    {
+      "name": "codex-meter-claude",
+      "source": "./plugins/codex-meter-claude",
+      "description": "Passes Claude Code's own quota readings to the locally installed Codex Meter app."
+    }
+  ]
+}

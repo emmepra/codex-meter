@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-private let meterLocale = Locale(identifier: "en_GB")
+let meterLocale = Locale(identifier: "en_GB")
 
 func percentage(_ value: Double?) -> String {
     guard let value, value.isFinite else { return "—" }
@@ -20,8 +20,14 @@ func remainingTime(_ reset: Double?, now: Date = Date()) -> String {
     let seconds = reset - now.timeIntervalSince1970
     guard seconds > 0 else { return "Waiting for reset" }
     let minutes = Int(ceil(seconds / 60))
-    if minutes >= 1440 { return "\(minutes / 1440) d \((minutes % 1440) / 60) h" }
-    if minutes >= 60 { return "\(minutes / 60) h \(minutes % 60) min" }
+    if minutes >= 1440 {
+        let hours = (minutes % 1440) / 60
+        return "\(minutes / 1440) d" + (hours > 0 ? " \(hours) h" : "")
+    }
+    if minutes >= 60 {
+        let remainder = minutes % 60
+        return "\(minutes / 60) h" + (remainder > 0 ? " \(remainder) min" : "")
+    }
     return "\(minutes) min"
 }
 
@@ -42,6 +48,7 @@ func meterColor(_ value: Double?) -> Color {
 
 @MainActor
 final class MeterStore: ObservableObject {
+    let provider: MeterProvider
     let updater = ReleaseChecker()
     let login = LoginPreference()
     let announcements = ResetAnnouncements()
@@ -50,8 +57,8 @@ final class MeterStore: ObservableObject {
     @Published var error: String?
     @Published var refreshing = false
     @Published var now = Date()
-    @Published var selectedID = UserDefaults.standard.string(forKey: "selectedWindow") {
-        didSet { UserDefaults.standard.set(selectedID, forKey: "selectedWindow"); onChange?() }
+    @Published var selectedID: String? {
+        didSet { UserDefaults.standard.set(selectedID, forKey: provider.windowPreferenceKey); onChange?() }
     }
     @Published var iconOnly = UserDefaults.standard.bool(forKey: "iconOnly") {
         didSet { UserDefaults.standard.set(iconOnly, forKey: "iconOnly"); onChange?() }
@@ -62,6 +69,12 @@ final class MeterStore: ObservableObject {
     private var fetchTask: Task<Void, Never>?
     private var resetRequestedFor: Double?
     private let client = CodexClient()
+    private let claudeFileURL: URL
+    init(provider: MeterProvider = .codex, claudeFileURL: URL = ClaudeUsage.defaultFileURL) {
+        self.provider = provider
+        self.claudeFileURL = claudeFileURL
+        selectedID = UserDefaults.standard.string(forKey: provider.windowPreferenceKey)
+    }
     var creditPace = CreditPace()
     var creditBucket: RateLimitBucket? { snapshot?.buckets.first { $0.limitId == "codex" } }
     var credits: CreditBalance? { creditBucket?.credits }
@@ -115,6 +128,7 @@ final class MeterStore: ObservableObject {
     }
 
     func start() {
+        guard refreshTimer == nil else { return }
         refresh()
         refreshTimer = Timer.scheduledTimer(withTimeInterval: 180, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.refresh() }
@@ -123,6 +137,7 @@ final class MeterStore: ObservableObject {
             Task { @MainActor in
                 guard let self else { return }
                 self.now = Date()
+                if self.provider == .claude { self.refresh() }
                 if let reset = self.entry?.window.resetsAt, reset <= self.now.timeIntervalSince1970,
                    self.resetRequestedFor != reset {
                     self.resetRequestedFor = reset
@@ -135,7 +150,12 @@ final class MeterStore: ObservableObject {
             name: NSWorkspace.didWakeNotification, object: nil)
     }
     @objc private func woke() { now = Date(); refresh() }
-    func stop() { refreshTimer?.invalidate(); clockTimer?.invalidate(); fetchTask?.cancel() }
+    func stop() {
+        refreshTimer?.invalidate(); refreshTimer = nil
+        clockTimer?.invalidate(); clockTimer = nil
+        fetchTask?.cancel(); refreshing = false
+        NSWorkspace.shared.notificationCenter.removeObserver(self)
+    }
     func observeCredits(at date: Date) {
         if let scope = snapshot?.creditScope {
             creditPace.observe(credits?.amount, scope: scope, at: date)
@@ -143,6 +163,20 @@ final class MeterStore: ObservableObject {
     }
     func refresh() {
         guard !refreshing else { return }
+        if provider == .claude {
+            do {
+                let observation = try ClaudeUsage.read(fileURL: claudeFileURL)
+                snapshot = observation.snapshot
+                updatedAt = observation.observedAt
+                error = nil
+            } catch {
+                // Local bridge errors never expose file contents or account data.
+                self.error = "No Claude Code snapshot. Set up the bridge, then use Claude Code."
+            }
+            now = Date()
+            onChange?()
+            return
+        }
         refreshing = true
         onChange?()
         fetchTask = Task {
@@ -200,269 +234,12 @@ struct ConsumptionTrack: View {
     }
 }
 
-struct MeterPanel: View {
-    @ObservedObject var store: MeterStore
-    @ObservedObject private var updater: ReleaseChecker
-    @ObservedObject private var login: LoginPreference
-    @ObservedObject private var announcements: ResetAnnouncements
-
-    private let staticPreview: Bool
-    @State private var showingDetails = false
-
-    init(store: MeterStore, announcements: ResetAnnouncements? = nil, staticPreview: Bool = false) {
-        self.staticPreview = staticPreview
-        self.store = store
-        updater = store.updater
-        login = store.login
-        self.announcements = announcements ?? store.announcements
-    }
-    private var budget: ComputeBudget? {
-        guard !store.uncertain, let window = store.entry?.window else { return nil }
-        return ComputeBudget(window: window, now: store.now)
-    }
-    private var daily: Bool { (budget?.remainingSeconds ?? 0) >= 86_400 }
-    private var resetAvailabilityColor: Color {
-        guard let count = store.snapshot?.availableResetCount else { return .secondary }
-        if store.stale { return .orange }
-        return Color(nsColor: count > 0 ? .systemGreen : .systemRed)
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 6) {
-                Image(nsImage: Bundle.main.url(forResource: "OpenAI", withExtension: "png").flatMap { NSImage(contentsOf: $0) } ?? NSImage(size: NSSize(width: 16, height: 16))).renderingMode(.template)
-                    .resizable().scaledToFit().frame(width: 16, height: 16)
-                    .accessibilityLabel("OpenAI")
-                Link(destination: ReleaseChecker.repository) {
-                    Text("Codex Meter").font(.system(size: 11, weight: .semibold))
-                }.buttonStyle(.plain).help("Codex Meter on GitHub")
-                if let entry = store.entry {
-                    Text(entry.bucketId == "codex" ? entry.window.label : entry.bucketName)
-                        .font(.system(size: 10)).foregroundStyle(.secondary).lineLimit(1)
-                }
-                Spacer()
-                Button { store.refresh() } label: {
-                    ZStack {
-                        if store.refreshing { ProgressView().controlSize(.mini) }
-                        else { Image(systemName: "arrow.clockwise").font(.system(size: 10)) }
-                    }.frame(width: 16, height: 16)
-                }.buttonStyle(.plain).disabled(store.refreshing)
-                    .help(store.updatedAt.map { "Last updated: " + $0.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened).locale(meterLocale)) + "\nRefresh now" } ?? "Not updated yet. Refresh now")
-                    .accessibilityLabel(store.refreshing ? "Refreshing" : "Refresh now")
-                if staticPreview {
-                    Image(systemName: "ellipsis").font(.system(size: 11, weight: .medium))
-                        .frame(width: 18, height: 14)
-                } else {
-                Menu {
-                    Toggle("Ring only", isOn: $store.iconOnly)
-                    Toggle("Launch at Login", isOn: Binding(get: { login.enabled }, set: { login.setEnabled($0) }))
-                    if login.needsApproval {
-                        Button("Approve Launch at Login…") { LoginPreference.openSettings() }
-                    }
-                    if let windows = store.snapshot?.windows, windows.count > 1 {
-                        Divider()
-                        ForEach(windows) { entry in
-                            Button {
-                                store.selectedID = entry.id
-                            } label: {
-                                if store.entry?.id == entry.id {
-                                    Label("\(entry.bucketName) · \(entry.window.label)", systemImage: "checkmark")
-                                } else { Text("\(entry.bucketName) · \(entry.window.label)") }
-                            }
-                        }
-                    }
-                    Divider()
-                    Button("Refresh") { store.refresh() }.disabled(store.refreshing)
-                    Divider()
-                    Text("Codex Meter \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—")")
-                    if announcements.hasUnread {
-                        Button("Mark Tibo Post as Read") { announcements.markRead() }
-                    }
-                    Toggle("Check Tibo’s Reset Posts", isOn: $announcements.enabled)
-                        .help("Read the public RSS feed at x.noodl3.net every 30 minutes. No X login or API key.")
-                    Toggle("Automatically Check for Updates", isOn: $updater.automaticChecks)
-                    if let release = updater.availableRelease {
-                        Button("Install \(release.version.text)…") { updater.openRelease() }
-                    }
-                    Button(updater.checking ? "Checking for Updates…" : "Check for Updates…") { updater.check() }
-                        .disabled(updater.checking)
-                    Button("Open Repository") { NSWorkspace.shared.open(ReleaseChecker.repository) }
-                    Divider()
-                    Button("Quit") { NSApplication.shared.terminate(nil) }
-                } label: {
-                    Image(systemName: "ellipsis").font(.system(size: 11, weight: .medium))
-                        .frame(width: 18, height: 14).contentShape(Rectangle())
-                }.menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize().help("Options")
-                    .accessibilityLabel("Options")
-                }
-            }
-
-            if let entry = store.entry {
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(alignment: .firstTextBaseline, spacing: 6) {
-                        Text(entry.bucketId == "codex" ? "Included quota" : "\(entry.bucketName) quota")
-                            .font(.system(size: 11))
-                        Spacer()
-                        Text(percentage(entry.window.usedPercent))
-                            .font(.system(size: 21, weight: .semibold, design: .rounded)).monospacedDigit()
-                        Text("used")
-                            .font(.system(size: 10)).foregroundStyle(.secondary).monospacedDigit()
-                    }.opacity(store.uncertain ? 0.55 : 1)
-                    ConsumptionTrack(used: entry.window.usedPercent, elapsed: nil, faded: store.uncertain)
-                    HStack(spacing: 6) {
-                        Text(entry.window.usedPercent == 100 ? "Quota exhausted" : "\(percentage(entry.window.usedPercent.map { 100 - $0 })) remaining")
-                        Spacer(minLength: 2)
-                        Text(entry.window.resetsAt == nil ? "Reset time unavailable" : (store.resetPending ? "Reset unconfirmed" : "Resets in \(remainingTime(entry.window.resetsAt, now: store.now))"))
-                            .help(resetDate(entry.window.resetsAt).map { "Scheduled reset: " + $0 } ?? "Reset time unavailable")
-                    }
-                    .font(.system(size: 10)).foregroundStyle(.secondary).lineLimit(1)
-                }
-            } else {
-                Text(store.refreshing ? "Reading usage limits…" : "Usage limits unavailable")
-                    .font(.system(size: 12)).foregroundStyle(.secondary).padding(.vertical, 8)
-            }
-
-            if store.credits != nil {
-                VStack(alignment: .leading, spacing: 5) {
-                    HStack(alignment: .firstTextBaseline, spacing: 6) {
-                        Text(store.creditBalanceLabel)
-                            .fontWeight(store.creditInUse ? .semibold : .regular)
-                            .foregroundStyle(store.creditInUse ? Color.primary : .secondary)
-                        Spacer(minLength: 2)
-                        Text(store.creditBalanceText).font(.system(size: 15, weight: .medium)).monospacedDigit()
-                    }
-                    .font(.system(size: 11))
-                    .help("Account credit balance, separate from included quota and banked resets. ‘In use’ means a recent balance decrease was observed while a Codex quota window was exhausted; expiry or adjustments can also lower the balance.")
-                }
-                .padding(.top, 3)
-            }
-
-            Divider()
-            stat("Usage limit resets", store.resetAvailabilityText,
-                 valueColor: resetAvailabilityColor)
-                .help("Banked resets for the Codex CLI account. A fresh positive count is green; zero is red. Out-of-date counts stay orange. Availability does not mean a quota window is eligible. Redeem resets in Codex.")
-
-            if announcements.enabled {
-                if let post = announcements.latest,
-                   store.now.timeIntervalSince(post.date) <= ResetFeed.maximumAge {
-                    HStack(spacing: 6) {
-                        Button { announcements.openLatest() } label: {
-                            VStack(alignment: .leading, spacing: 3) {
-                                HStack(spacing: 4) {
-                                    if announcements.hasUnread { Circle().fill(Color.orange).frame(width: 4, height: 4) }
-                                    Text("𝕏").font(.system(size: 11)).accessibilityHidden(true)
-                                    Text("Tibo")
-                                    if announcements.unavailable { Text("· cached").foregroundStyle(.secondary) }
-                                    Spacer(minLength: 2)
-                                    Text(postDateLabel(post.date, now: store.now))
-                                    Image(systemName: "arrow.up.right").font(.system(size: 8))
-                                }
-                                Text(post.excerpt)
-                                    .lineLimit(2).multilineTextAlignment(.leading)
-                                    .fixedSize(horizontal: false, vertical: true)
-                            }.font(.system(size: 10)).foregroundStyle(.primary)
-                        }.buttonStyle(.plain).help("\(post.date.formatted(Date.FormatStyle(date: .complete, time: .shortened).locale(meterLocale)))\n\(post.text.prefix(500))\nVia x.noodl3.net · Keyword match, not confirmation of an account reset.")
-                        if announcements.hasUnread {
-                            Button { announcements.markRead() } label: {
-                                Image(systemName: "checkmark").font(.system(size: 9, weight: .medium))
-                                    .frame(width: 14, height: 14).contentShape(Rectangle())
-                            }.buttonStyle(.plain).foregroundStyle(.secondary)
-                                .help("Mark as seen").accessibilityLabel("Mark Tibo post as seen")
-                        }
-                    }
-                } else if announcements.unavailable {
-                    Text("Tibo posts unavailable").font(.system(size: 10)).foregroundStyle(.secondary)
-                        .help("The public RSS source x.noodl3.net could not be refreshed. Quota data is unaffected.")
-                }
-            }
-
-            if let error = store.error {
-                Label(error, systemImage: "exclamationmark.triangle")
-                    .font(.system(size: 10)).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
-            } else if store.uncertain {
-                Text(store.resetPending ? "Reset unconfirmed. Stats paused." : "Data is out of date. Stats paused.")
-                    .font(.system(size: 10)).foregroundStyle(.orange)
-            }
-            HStack {
-                Text(store.updatedAt.map { "Updated " + $0.formatted(.dateTime.locale(meterLocale).hour().minute()) } ?? "Not updated yet")
-                    .help(store.updatedAt.map { $0.formatted(Date.FormatStyle(date: .complete, time: .shortened).locale(meterLocale)) } ?? "No successful refresh yet")
-                Spacer()
-                Button { showingDetails.toggle() } label: {
-                    HStack(spacing: 3) {
-                        Text("Details")
-                        Image(systemName: showingDetails ? "chevron.up" : "chevron.down").font(.system(size: 8))
-                    }.contentShape(Rectangle())
-                }.buttonStyle(.plain)
-                    .accessibilityLabel(showingDetails ? "Hide usage details" : "Show usage details")
-                    .help("Quota budget and recent credit consumption")
-            }.font(.system(size: 10)).foregroundStyle(.secondary)
-            if showingDetails {
-                Divider()
-                quotaDetails
-                if store.credits?.amount != nil {
-                    if budget != nil { Divider() }
-                    VStack(spacing: 7) {
-                        stat("Recent consumption", store.creditRateText)
-                            .help("Observed balance decrease over up to 30 minutes, after at least 15 minutes of readings. Includes account-wide activity. Additions or long gaps restart the estimate.")
-                        stat("Estimate basis", store.creditRate != nil ? "Up to 30 min" : "Not enough recent data")
-                        stat("Credit runway", store.creditRunwayText)
-                            .help("Remaining balance divided by recent observed consumption. Estimated time until the balance runs out at that pace.")
-                    }
-                }
-            }
-        }.padding(14).frame(width: 270).environment(\.locale, meterLocale)
-    }
-    @ViewBuilder private var quotaDetails: some View {
-        if let budget {
-            VStack(spacing: 7) {
-                stat(daily ? "Daily budget" : "Hourly budget",
-                     quotaAmount(daily ? budget.budgetPerDay : budget.budgetPerHour), prominent: true)
-                    .help("Remaining quota divided by time until reset. Percentage points of the total quota available every \(daily ? "24 hours" : "hour"), starting now.")
-                if let endOfDay = Calendar.current.dateInterval(of: .day, for: store.now)?.end,
-                   endOfDay.timeIntervalSince(store.now) < budget.remainingSeconds {
-                    let todayBudget = budget.remainingPercent * endOfDay.timeIntervalSince(store.now) / budget.remainingSeconds
-                    stat("Today, from now", quotaAmount(todayBudget))
-                        .help("Quota available from now until midnight at the budgeted pace.")
-                }
-                stat(daily ? "Average / day" : "Average / hour",
-                     budget.averagePerDay.map { quotaAmount(daily ? $0 : $0 / 24) } ?? "—")
-                    .help("Estimated average since the start of the period: usage divided by elapsed time. The start is inferred from the reset and duration; this is not a record of daily usage.")
-                if budget.remainingPercent == 0 {
-                    stat("Quota used up", store.credits?.hasCredits == true ? "Credits available" : "Wait for reset", warning: true)
-                } else if let exhaustion = budget.projectedExhaustion,
-                          exhaustion.timeIntervalSince(store.now) < budget.remainingSeconds {
-                    stat("Runway at this pace", remainingTime(exhaustion.timeIntervalSince1970, now: store.now), warning: true)
-                        .help("Estimate at the average pace since the start of the period. Future usage may change.")
-                } else if let remaining = budget.projectedRemainingAtReset {
-                    stat("Projected at reset", "\(quotaAmount(remaining)) remaining")
-                        .help("Quota that would remain at reset if you kept the average pace since the start of the period.")
-                } else {
-                    stat("Pace estimate", "Not enough data")
-                }
-            }
-        } else {
-            Text(store.uncertain ? "Quota stats paused until a fresh read." : "Stats require known quota and reset time.")
-                .font(.system(size: 10)).foregroundStyle(.secondary)
-        }
-    }
-    private func stat(_ label: String, _ value: String, prominent: Bool = false, warning: Bool = false,
-                      valueColor: Color? = nil) -> some View {
-        let color = warning ? Color.orange : (valueColor ?? Color.primary)
-        return HStack(alignment: .firstTextBaseline, spacing: 6) {
-            Text(label).foregroundStyle(.secondary)
-            Spacer(minLength: 2)
-            Text(value).fontWeight(prominent ? .semibold : .regular)
-                .foregroundStyle(color)
-                .monospacedDigit()
-        }.font(.system(size: 11)).fixedSize(horizontal: false, vertical: true)
-    }
-}
-
 @MainActor
 final class MeterDelegate: NSObject, NSApplicationDelegate {
-    private let store = MeterStore()
+    private let selection = ProviderSelection()
+    private var store: MeterStore { selection.codex }
     private var statusItem: NSStatusItem!
-    private lazy var panel = StatusPanel(content: AnyView(MeterPanel(store: store)),
+    private lazy var panel = StatusPanel(content: AnyView(UnifiedMeterPanel(selection: selection)),
                                          anchor: { [weak self] in self?.statusItem?.button?.window })
     private var pendingPanelOpen = false
     private var openAttempts = 0
@@ -485,9 +262,9 @@ final class MeterDelegate: NSObject, NSApplicationDelegate {
                 self?.updateStatus()
             }
         }
-        store.onChange = { [weak self] in self?.updateStatus() }
+        selection.onChange = { [weak self] in self?.updateStatus() }
         updateStatus()
-        store.start()
+        selection.start()
         store.updater.onChange = { [weak self] in self?.updateStatus() }
         store.updater.start()
         store.announcements.onChange = { [weak self] in self?.updateStatus() }
@@ -500,7 +277,7 @@ final class MeterDelegate: NSObject, NSApplicationDelegate {
         requestPanelOpen()
         return false
     }
-    func applicationWillTerminate(_ notification: Notification) { store.stop(); store.updater.stop(); store.announcements.stop() }
+    func applicationWillTerminate(_ notification: Notification) { selection.stop(); store.updater.stop(); store.announcements.stop() }
     @objc private func togglePanel() {
         if panel.isVisible {
             pendingPanelOpen = false
@@ -520,6 +297,7 @@ final class MeterDelegate: NSObject, NSApplicationDelegate {
         if let window = button.window, window.isVisible, window.frame.height > 0 {
             pendingPanelOpen = false
             store.now = Date()
+            if selection.claudeEnabled { selection.claude.now = Date(); selection.claude.refresh() }
             if store.updatedAt.map({ Date().timeIntervalSince($0) > 180 }) ?? true { store.refresh() }
             if panel.show() { return }
             pendingPanelOpen = true
@@ -534,10 +312,18 @@ final class MeterDelegate: NSObject, NSApplicationDelegate {
         let used = entry?.window.usedPercent
         button.title = store.uncertain && !store.iconOnly && entry != nil ? " !" : ""
         button.image = StatusIndicator.image(used: used, uncertain: store.uncertain,
-                                 showPercentage: !store.iconOnly, refreshing: store.refreshing,
+                                 showPercentage: !store.iconOnly && (!selection.claudeEnabled || !store.uncertain), refreshing: store.refreshing,
                                  resetCount: store.statusResetCount,
                                  appearance: button.effectiveAppearance,
                                  unreadAnnouncement: store.announcements.hasUnread)
+        if selection.claudeEnabled, let codexImage = button.image {
+            let claude = selection.claude
+            let claudeImage = StatusIndicator.image(used: claude.entry?.window.usedPercent,
+                uncertain: claude.uncertain, showPercentage: !selection.iconOnly && !claude.uncertain,
+                refreshing: claude.refreshing, resetCount: nil, appearance: button.effectiveAppearance)
+            button.image = StatusIndicator.combined(codex: codexImage, claude: claudeImage)
+            button.title = ""
+        }
         button.toolTip = entry.map {
             "Codex · \($0.window.label) · \(percentage(used)) used\nReset: \(resetDate($0.window.resetsAt) ?? "unavailable")\(store.uncertain ? "\nData needs refreshing" : "")"
         } ?? "Codex Meter · usage limits unavailable"
@@ -551,6 +337,14 @@ final class MeterDelegate: NSObject, NSApplicationDelegate {
         if store.announcements.hasUnread {
             button.toolTip = (button.toolTip ?? "Codex Meter") + "\nUnread Tibo post mentioning reset"
         }
+        if selection.claudeEnabled {
+            let claude = selection.claude
+            button.toolTip = (button.toolTip ?? "Codex Meter") + "\n\nClaude Code · "
+                + (claude.entry?.window.label ?? "No data") + " · " + percentage(claude.entry?.window.usedPercent) + " used"
+                + "\nReset: " + (resetDate(claude.entry?.window.resetsAt) ?? "unavailable")
+                + (claude.uncertain ? "\nClaude data needs updating" : "")
+                + "\nSource: last Claude Code capture"
+        }
         button.setAccessibilityLabel(button.toolTip)
         panel.schedulePosition()
         if pendingPanelOpen { attemptPanelOpen() }
@@ -562,7 +356,28 @@ final class MeterDelegate: NSObject, NSApplicationDelegate {
 @main
 struct CodexMeterApp {
     static func main() {
-        if CommandLine.arguments.contains("--check") {
+        if CommandLine.arguments.contains("--capture-claude-usage") {
+            do { print(try ClaudeBridge.captureStandardInput()); exit(0) }
+            catch { fputs("Codex Meter: could not capture Claude quota.\n", stderr); exit(1) }
+        } else if CommandLine.arguments.contains("--install-claude-bridge") {
+            Task {
+                do {
+                    let executable = URL(fileURLWithPath: CommandLine.arguments[0]).standardizedFileURL
+                    if let cli = ClaudeDesktopBridge.desktopCLI() {
+                        try await ClaudeDesktopBridge.install(cli: cli, executable: executable)
+                        print("Claude Desktop bridge enabled. Run /reload-plugins in the Code session, or open a new session.")
+                    } else {
+                        _ = try ClaudeBridge.install(executableURL: executable)
+                        print("Claude terminal bridge ready. Open or restart Claude Code to receive quota.")
+                    }
+                    exit(0)
+                } catch {
+                    fputs(((error as? LocalizedError)?.errorDescription ?? "Could not configure Claude bridge.") + "\n", stderr)
+                    exit(1)
+                }
+            }
+            RunLoop.main.run()
+        } else if CommandLine.arguments.contains("--check") {
             Task {
                 do {
                     let data = try await CodexClient().readLimits()

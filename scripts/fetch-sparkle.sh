@@ -13,6 +13,8 @@ ACTUAL=$(shasum -a 256 "$STAGING/archive.tar.xz" | cut -d ' ' -f 1)
 [[ "$ACTUAL" == "$EXPECTED" ]] || { echo 'Sparkle checksum mismatch' >&2; exit 1; }
 mkdir "$STAGING/unpacked"
 tar -xf "$STAGING/archive.tar.xz" -C "$STAGING/unpacked"
+# macOS can attach Finder metadata during extraction; it is not part of the signed code.
+xattr -cr "$STAGING/unpacked/Sparkle.framework"
 codesign --verify --deep --strict "$STAGING/unpacked/Sparkle.framework"
 touch "$STAGING/unpacked/.verified"
 # Never replace an unexpected pre-existing dependency directory.

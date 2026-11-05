@@ -9,17 +9,18 @@ if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
   printf '%s\n' 'VERSION must contain a version such as 0.3.1.' >&2
   exit 1
 fi
-BUILD_DIR="$PROJECT_DIR/.build"
+BUILD_DIR="${METER_BUILD_DIR:-$PROJECT_DIR/.build}"
 APP_DIR="$BUILD_DIR/Codex Meter.app"
 mkdir -p "$APP_DIR/Contents/MacOS" "$APP_DIR/Contents/Resources" "$BUILD_DIR/module-cache"
 xcrun swiftc -swift-version 5 -O -parse-as-library -target arm64-apple-macosx13.0 \
   -module-cache-path "$BUILD_DIR/module-cache" \
-  Sources/UsageSnapshot.swift Sources/CreditPace.swift Sources/ComputeBudget.swift Sources/CodexClient.swift Sources/PanelPlacement.swift Sources/StatusPanel.swift Sources/StatusIndicator.swift Sources/ReleaseInfo.swift Sources/ReleaseChecker.swift Sources/SparkleInstaller.swift Sources/LoginPreference.swift Sources/ResetAnnouncements.swift Sources/App.swift \
+  Sources/*.swift \
   -F "$SPARKLE_DIR" -framework Sparkle -Xlinker -rpath -Xlinker @executable_path/../Frameworks \
   -o "$APP_DIR/Contents/MacOS/CodexMeter"
 mkdir -p "$APP_DIR/Contents/Frameworks"
 ditto "$SPARKLE_DIR/Sparkle.framework" "$APP_DIR/Contents/Frameworks/Sparkle.framework"
 cp "$SPARKLE_DIR/LICENSE" "$APP_DIR/Contents/Resources/Sparkle-LICENSE"
+ditto --norsrc --noextattr Resources/ClaudeBridgePlugin "$APP_DIR/Contents/Resources/ClaudeBridgePlugin"
 xcrun swift -module-cache-path "$BUILD_DIR/module-cache" scripts/make-icon.swift "$BUILD_DIR/AppIcon.iconset"
 iconutil -c icns "$BUILD_DIR/AppIcon.iconset" -o "$APP_DIR/Contents/Resources/AppIcon.icns"
 sips -s format png -z 128 128 Resources/OpenAI.svg --out "$APP_DIR/Contents/Resources/OpenAI.png" >/dev/null
@@ -50,5 +51,7 @@ cat > "$APP_DIR/Contents/Info.plist" <<PLIST
   <key>NSHighResolutionCapable</key><true/>
 </dict></plist>
 PLIST
+# Finder metadata in a local checkout must not invalidate the app's code signature.
+xattr -cr "$APP_DIR"
 codesign --force --sign - "$APP_DIR"
 printf '%s\n' "$APP_DIR"

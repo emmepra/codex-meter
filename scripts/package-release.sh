@@ -19,7 +19,8 @@ if [[ "$(uname -s)" != Darwin || "$(uname -m)" != arm64 ]]; then
 fi
 
 ./scripts/build.sh
-APP_DIR="$PROJECT_DIR/.build/Codex Meter.app"
+BUILD_DIR="${METER_BUILD_DIR:-$PROJECT_DIR/.build}"
+APP_DIR="$BUILD_DIR/Codex Meter.app"
 BINARY="$APP_DIR/Contents/MacOS/CodexMeter"
 [[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP_DIR/Contents/Info.plist")" == "$VERSION" ]]
 [[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIconFile' "$APP_DIR/Contents/Info.plist")" == AppIcon ]]
@@ -27,7 +28,9 @@ BINARY="$APP_DIR/Contents/MacOS/CodexMeter"
 [[ "$(lipo -archs "$BINARY")" == arm64 ]]
 codesign --verify --deep --strict "$APP_DIR"
 
-STAGING_DIR=$(mktemp -d "$PROJECT_DIR/.build/release-staging.XXXXXX")
+# Keep signed bundles outside synchronized checkouts, where Finder/FileProvider
+# can reattach extended attributes after signing or extraction.
+STAGING_DIR=$(mktemp -d /private/tmp/codex-meter-release.XXXXXX)
 trap 'rm -rf "$STAGING_DIR"' EXIT
 mkdir -p "$STAGING_DIR/archive" "$STAGING_DIR/unpacked" .build/release
 # Fresh staging contains only the app and public installation/provenance files.
