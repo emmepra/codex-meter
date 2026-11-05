@@ -4,8 +4,6 @@
 
 A small native macOS menu bar app for keeping Codex and Claude Code quota in view.
 
-The current source adds automatic Desktop sync, provider colors and selectable menu-bar rings beyond the published 0.7.0 release. Build from source to use these changes.
-
 - **Compact rings:** show Codex and Claude together, or either service alone, with consumed quota inside each ring.
 - **One shared overview:** both service rows stay visible, with remaining quota, reset countdowns and independent freshness.
 - **Details when needed:** daily or hourly allowance, today's budget, average quota pace, recent credit consumption and credit runway.
@@ -24,7 +22,7 @@ The preview shows both services with synthetic quota values, not actual account 
 
 </details>
 
-See the [0.7.0 release notes](docs/releases/0.7.0.md) for the new overview and Claude setup.
+See the [0.7.1 release notes](docs/releases/0.7.1.md) for menu-bar choices, automatic Claude sync and upgrade instructions.
 
 This is an independent project, not affiliated with OpenAI or Anthropic.
 
