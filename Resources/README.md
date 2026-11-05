@@ -1,7 +1,8 @@
 # Visual assets
 
-- `OpenAI.svg`: OpenAI Blossom mark from Simple Icons v14.0.0 (`https://github.com/simple-icons/simple-icons/blob/14.0.0/icons/openai.svg`). OpenAI owns the mark; see https://openai.com/brand/ for usage guidelines. It identifies the service in the panel, not project ownership or endorsement.
-- The independent Codex Meter application icon is drawn by `scripts/make-icon.swift`. The build produces the standard macOS icon sizes and packages `AppIcon.icns` plus a raster version of the header mark. No network access is required to build these assets.
+- `MeterMark.svg` and `MeterMark.png`: Codex Meter's independent twin-ring project mark, constructed from circles and arcs in `scripts/make-icon.swift`. The PNG is a transparent 256 × 256 export for the panel header. Neither ring is an OpenAI or Anthropic logo.
+- The same geometry draws the application icon on a warm charcoal tile. The existing build command produces all standard macOS icon sizes and packages `AppIcon.icns`. Header and repository artwork can be regenerated offline with `xcrun swift scripts/make-icon.swift --brand .` from the repository root.
+- See [the brand guide](../docs/BRAND.md) for colors, exports and provenance. These assets contain no quota values or account data.
 
 ## Sparkle
 

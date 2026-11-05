@@ -23,7 +23,9 @@ cp "$SPARKLE_DIR/LICENSE" "$APP_DIR/Contents/Resources/Sparkle-LICENSE"
 ditto --norsrc --noextattr Resources/ClaudeBridgePlugin "$APP_DIR/Contents/Resources/ClaudeBridgePlugin"
 xcrun swift -module-cache-path "$BUILD_DIR/module-cache" scripts/make-icon.swift "$BUILD_DIR/AppIcon.iconset"
 iconutil -c icns "$BUILD_DIR/AppIcon.iconset" -o "$APP_DIR/Contents/Resources/AppIcon.icns"
-sips -s format png -z 128 128 Resources/OpenAI.svg --out "$APP_DIR/Contents/Resources/OpenAI.png" >/dev/null
+cp Resources/MeterMark.png "$APP_DIR/Contents/Resources/MeterMark.png"
+# Older local build directories can still contain the former service mark.
+rm -f "$APP_DIR/Contents/Resources/OpenAI.png"
 cat > "$APP_DIR/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">

@@ -21,27 +21,29 @@ struct UnifiedMeterPanel: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 6) {
-                Text("Usage").font(.system(size: 12, weight: .semibold)).foregroundStyle(.secondary)
+            HStack(spacing: 9) {
+                MeterBrandMark()
+                Text("Codex Meter").font(.system(size: 13, weight: .semibold))
                 Spacer()
-                Button { selection.refreshAll() } label: {
-                    ZStack {
-                        if selection.codex.refreshing { ProgressView().controlSize(.mini) }
-                        else { Image(systemName: "arrow.clockwise").font(.system(size: 11)) }
-                    }.frame(width: 20, height: 20).contentShape(Rectangle())
-                }.buttonStyle(.plain).disabled(selection.codex.refreshing)
-                    .help(selection.claudeEnabled ? "Refresh Codex and read the latest Claude capture." : "Refresh usage limits.")
-                    .accessibilityLabel("Refresh usage")
-                MeterOptions(selection: selection, staticPreview: staticPreview)
-            }.frame(minHeight: 20).padding(.bottom, 14)
+                HStack(spacing: 2) {
+                    Button { selection.refreshAll() } label: {
+                        ZStack {
+                            if selection.codex.refreshing { ProgressView().controlSize(.mini) }
+                            else { Image(systemName: "arrow.clockwise").font(.system(size: 11)) }
+                        }.frame(width: 24, height: 24).contentShape(Rectangle())
+                    }.buttonStyle(.plain).disabled(selection.codex.refreshing)
+                        .help(selection.claudeEnabled ? "Refresh Codex and read the latest Claude capture." : "Refresh usage limits.")
+                        .accessibilityLabel("Refresh usage")
+                    MeterOptions(selection: selection, staticPreview: staticPreview).frame(width: 24, height: 24)
+                }.foregroundStyle(.secondary)
+            }.frame(minHeight: 30).padding(.bottom, 12)
 
             section(selection.codex)
             if selection.claudeEnabled {
-                Divider().padding(.vertical, 14)
-                section(selection.claude)
+                section(selection.claude).padding(.top, 10)
             }
         }
-        .padding(.horizontal, 16).padding(.vertical, 14).frame(width: 300)
+        .padding(14).frame(width: 300)
         .environment(\.locale, overviewLocale)
         .onChange(of: selection.claudeEnabled) { enabled in
             if !enabled, expandedProvider == .claude { expandedProvider = nil }
@@ -59,6 +61,44 @@ struct UnifiedMeterPanel: View {
     }
 }
 
+/// The header mark is independent of either provider's logo.
+@MainActor
+private struct MeterBrandMark: View {
+    private static let bundledMark: NSImage? = {
+        if let url = Bundle.main.url(forResource: "MeterMark", withExtension: "png"),
+           let image = NSImage(contentsOf: url) { return image }
+        #if METER_TESTS
+        let source = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+            .appendingPathComponent("Resources/MeterMark.png")
+        return NSImage(contentsOf: source)
+        #else
+        return nil
+        #endif
+    }()
+
+    var body: some View {
+        Group {
+            if let mark = Self.bundledMark {
+                Image(nsImage: mark).resizable().interpolation(.high).scaledToFit()
+            } else {
+                HStack(spacing: 2) {
+                    ring(.codex, through: 0.7)
+                    ring(.claude, through: 0.45)
+                }
+            }
+        }.frame(width: 18, height: 18).accessibilityHidden(true)
+    }
+
+    private func ring(_ accent: ProviderAccent, through progress: CGFloat) -> some View {
+        ZStack {
+            Circle().strokeBorder(Color(nsColor: accent.color).opacity(0.25), lineWidth: 1.3)
+            Circle().trim(from: 0, to: progress)
+                .stroke(Color(nsColor: accent.color), style: StrokeStyle(lineWidth: 1.3, lineCap: .round))
+                .rotationEffect(.degrees(-90)).padding(0.65)
+        }.frame(width: 7.5, height: 7.5)
+    }
+}
+
 @MainActor
 private struct ProviderOverview: View {
     @ObservedObject var store: MeterStore
@@ -68,22 +108,29 @@ private struct ProviderOverview: View {
 
     private var used: Double? { store.entry?.window.usedPercent }
     private var faded: Bool { store.uncertain }
+    private var accent: Color { Color(nsColor: (store.provider == .codex ? ProviderAccent.codex : .claude).color) }
     private var windowTitle: String {
         guard let entry = store.entry else { return "No data" }
         return entry.bucketId == store.provider.rawValue ? entry.window.label : "\(entry.bucketName) · \(entry.window.label)"
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text(store.provider.title).font(.system(size: 12, weight: .semibold))
-                if store.entry != nil { windowSelector }
-                Spacer(minLength: 4)
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .center, spacing: 8) {
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 6) {
+                        Circle().fill(accent).frame(width: 5, height: 5).accessibilityHidden(true)
+                        Text(store.provider.title).font(.system(size: 13, weight: .semibold))
+                    }
+                    if store.entry != nil { windowSelector.padding(.leading, 11) }
+                }
+                Spacer(minLength: 2)
                 HStack(alignment: .firstTextBaseline, spacing: 4) {
                     Text(percentage(used))
-                        .font(.system(size: 20, weight: .semibold, design: .rounded)).monospacedDigit()
+                        .font(.system(size: 24, weight: .semibold, design: .rounded)).monospacedDigit()
                     Text("used").font(.system(size: 10)).foregroundStyle(.secondary)
                 }.opacity(faded ? 0.5 : 1)
+                    .layoutPriority(1)
                     .accessibilityElement(children: .ignore)
                     .accessibilityLabel("\(percentage(used)) used\(faded ? ", last known reading" : "")")
             }
@@ -144,13 +191,16 @@ private struct ProviderOverview: View {
                 }.buttonStyle(.plain)
                     .accessibilityLabel("\(expanded ? "Hide" : "Show") \(store.provider.title) details")
                     .help("Quota budget and provider details")
-            }.font(.system(size: 10)).foregroundStyle(.secondary)
+            }.font(.system(size: 9.5)).foregroundStyle(.secondary).padding(.top, 2)
 
             if expanded {
                 Divider().padding(.top, 2)
                 UsageDetails(store: store, announcements: announcements).padding(.top, 2)
             }
         }
+        .padding(.horizontal, 12).padding(.vertical, 10)
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.primary.opacity(0.035)))
+        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Color.primary.opacity(0.045), lineWidth: 1))
     }
 
     @ViewBuilder private var windowSelector: some View {
@@ -185,7 +235,7 @@ private struct ProviderOverview: View {
         HStack(spacing: 3) {
             Text(windowTitle).lineLimit(1).truncationMode(.middle)
             Image(systemName: "chevron.down").font(.system(size: 8))
-        }.frame(minHeight: 20).contentShape(Rectangle())
+        }.frame(minHeight: 16).contentShape(Rectangle())
     }
 
     private var missingReading: String {
