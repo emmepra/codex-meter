@@ -122,7 +122,7 @@ private final class CodexReadOperation: @unchecked Sendable {
         _ = fcntl(input.fileHandleForWriting.fileDescriptor, F_SETNOSIGPIPE, 1)
         defer {
             try? input.fileHandleForWriting.close()
-            finish(process)
+            process.finishMeterRead()
             try? output.fileHandleForReading.close()
         }
 
@@ -213,18 +213,5 @@ private final class CodexReadOperation: @unchecked Sendable {
         } catch {
             throw CodexClientError.disconnected
         }
-    }
-
-    private func finish(_ process: Process) {
-        // EOF normally closes app-server immediately; bounded fallbacks prevent orphan processes.
-        let gracefulDeadline = ProcessInfo.processInfo.systemUptime + 0.3
-        while process.isRunning && ProcessInfo.processInfo.systemUptime < gracefulDeadline { usleep(10_000) }
-        if process.isRunning {
-            process.terminate()
-            let terminateDeadline = ProcessInfo.processInfo.systemUptime + 0.3
-            while process.isRunning && ProcessInfo.processInfo.systemUptime < terminateDeadline { usleep(10_000) }
-        }
-        if process.isRunning { kill(process.processIdentifier, SIGKILL) }
-        process.waitUntilExit()
     }
 }

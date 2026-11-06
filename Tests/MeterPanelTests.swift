@@ -263,7 +263,7 @@ struct MeterPanelTests {
         try ClaudeBridge.capture(input: JSONSerialization.data(withJSONObject: payload), fileURL: fixture, now: received)
         let claude = MeterStore(provider: .claude, claudeFileURL: fixture)
         claude.selectedID = "claude/primary"
-        claude.refresh()
+        claude.readClaudeBridge()
         precondition(abs(claude.updatedAt!.timeIntervalSince(received)) < 0.001,
                      "Rereading the file must not refresh its capture time")
         precondition(claude.entry?.window.usedPercent == 35 && claude.credits == nil)
@@ -354,10 +354,10 @@ struct MeterPanelTests {
         try FileManager.default.removeItem(at: fixture)
         try ClaudeBridge.capture(input: JSONSerialization.data(withJSONObject: desktopPayload), fileURL: fixture, now: oldObservation)
         try ClaudeBridge.capture(input: JSONSerialization.data(withJSONObject: desktopPayload), fileURL: fixture, now: received)
-        claude.refresh()
+        claude.readClaudeBridge()
         precondition(claude.syncsClaudeDesktop && !claude.stale && abs(claude.updatedAt!.timeIntervalSince(oldObservation)) < 0.001)
         precondition(abs(claude.freshnessDate!.timeIntervalSince(received)) < 0.001 && abs(claude.claudeCheckedAt!.timeIntervalSince(received)) < 0.001)
-        claude.refresh()
+        claude.readClaudeBridge()
         precondition(abs(claude.updatedAt!.timeIntervalSince(oldObservation)) < 0.001 && abs(claude.claudeCheckedAt!.timeIntervalSince(received)) < 0.001)
         _ = try renderOverview("claude-synced")
         claude.now = received.addingTimeInterval(601)
@@ -366,18 +366,18 @@ struct MeterPanelTests {
         desktopPayload["meterExpectedLimits"] = payload["rate_limits"]
         desktopPayload["rate_limits"] = ["seven_day": ["used_percentage": 62, "resets_at": received.timeIntervalSince1970 - 1]]
         try ClaudeBridge.capture(input: JSONSerialization.data(withJSONObject: desktopPayload), fileURL: fixture, now: received)
-        claude.refresh()
+        claude.readClaudeBridge()
         precondition(!claude.stale && claude.resetPending && claude.uncertain,
                      "A live sync cannot confirm a reset from cached quota")
         let unknown = try ClaudeBridge.capture(input: Data("{}".utf8), fileURL: fixture, now: Date())
         precondition(unknown == "Claude usage unavailable")
-        claude.refresh()
+        claude.readClaudeBridge()
         precondition(claude.entry == nil, "Missing Claude windows must clear earlier values")
         precondition(!claude.syncsClaudeDesktop && claude.claudeCheckedAt == nil,
                      "Legacy and terminal captures must clear Desktop sync metadata")
         _ = try renderOverview("claude-unknown")
         try FileManager.default.removeItem(at: fixture)
-        claude.refresh()
+        claude.readClaudeBridge()
         precondition(claude.stale && !codex.stale)
         selection.claudeEnabled = false
         precondition(selection.activeStore === codex)

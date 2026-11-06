@@ -94,9 +94,9 @@ Gatekeeper may block the downloaded app because it has no Developer ID signature
 
 Codex Meter appears in the menu bar without a Dock icon. Click the small ring to open the overview; the used percentage is centered inside the ring, and **Ring only** hides that number. The 300-point panel always shows one compact row per enabled service: Codex, plus Claude when **Monitor Claude** is on. Each row includes its name, period, used quota and bar, remaining share and reset countdown. No service tabs are needed. Open a row's **Details** for budgets and pace; at most one service's Details stays open. Codex Details also contains credits, banked resets and Tibo posts. Compact cues remain visible when attention is needed.
 
-Each row shows relative freshness with **Updated** for Codex, **Synced** for a Desktop bridge check, or **Captured** for terminal and older Claude snapshots. Hover for exact check/observation times and the source explanation. These local times are separate from the quota window's scheduled reset.
+Each row shows relative freshness with **Updated** for a direct CLI read, **Synced** for a Desktop bridge check, or **Captured** for terminal and older Claude snapshots. Hover for exact check/observation times and the source explanation. These local times are separate from the quota window's scheduled reset.
 
-Missing quota is shown as unavailable, never as zero. A reported zero remains a valid reading. Out-of-date values and unconfirmed resets are marked explicitly and pause estimates; one service's state does not invalidate the other. Use the shared header's refresh button to read Codex and the latest local Claude capture.
+Missing quota is shown as unavailable, never as zero. A reported zero remains a valid reading. Out-of-date values and unconfirmed resets are marked explicitly and pause estimates; one service's state does not invalidate the other. Use the shared header’s refresh button to request Codex and Claude usage.
 
 See [Credits](USAGE.md#credits) for balance states, recent-consumption calculations, account scope and estimate limits.
 
@@ -126,9 +126,9 @@ When a service supplies more than one quota window, click its visible period lab
 
 ## Optional Claude Code support
 
-Claude support is optional. Sign in through Claude Code's own flow. Meter connects to local Code sessions in two ways: a small plugin for Claude Desktop's **Code** tab, or a status-line command for terminal Claude Code. Neither route reads OAuth tokens or starts model tasks. General Claude chat, Cowork and remote/cloud sessions are outside this integration.
+Enable **Options → Monitor Claude** and sign in through Claude Code’s own flow. With a compatible CLI embedded in Claude Desktop (tested with 2.1.317), Meter requests the five-hour and weekly subscription quota without an open Code session. It uses the experimental structured usage request, disables tools and asks the CLI to skip transcript scanning. Direct readings stay in memory. If a direct read fails, Meter can use a capture from the Desktop plugin or the terminal status line.
 
-Install Meter in a stable Applications location first. Enable **Options → Monitor Claude**, then choose **Set Up Claude… → Enable Bridge**. Setup selects the Desktop plugin when a compatible Desktop installation is available, with the terminal status line as a fallback. The setup result identifies the configured route.
+To configure the fallback bridge, install Meter in a stable Applications location first. Enable **Options → Monitor Claude**, then choose **Set Up Claude… → Enable Bridge**. Setup selects the Desktop plugin when a compatible Desktop installation is available, with the terminal status line as a fallback. The setup result identifies the configured route.
 
 Alternatively, run Meter's executable to configure the bridge:
 
@@ -170,7 +170,7 @@ Quota fields in the [status-line data](https://code.claude.com/docs/en/statuslin
 
 ### Reading freshness and removal
 
-Claude's row stays visible beside Codex in Meter's panel. Meter rereads the local file every 15 seconds; the shared header's refresh button reads it immediately. Neither asks Anthropic for a new reading. Open Claude Details for budget and pace estimates.
+Claude's row stays visible beside Codex in Meter's panel. Meter checks the fallback file every 15 seconds when using the bridge. The header refresh button also requests subscription quota from the local CLI. Open Claude Details for budget and pace estimates.
 
 **Synced** uses the Desktop payload's `checkedAt`: the last successful local bridge check. Its separate `observedAt` records a quota change or measurement event. Identical cached checks update the connection time without advancing the quota-observation time. The tooltip shows both and explains that server freshness is unknown. Desktop data becomes out of date if this connection stops for more than ten minutes. A reported reset still waits for new data after its scheduled time; a continuing bridge check does not confirm it.
 

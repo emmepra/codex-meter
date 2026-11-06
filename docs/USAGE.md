@@ -18,11 +18,13 @@ The Codex ring has independent corner dots: green at top left for a fresh positi
 
 Codex reads its installed CLI every three minutes and after wake. **Updated** shows the last successful read. A failed read or more than ten minutes without one marks retained data out of date and pauses estimates. The CLI account can differ from the Codex desktop account.
 
-For Claude Desktop Code, bridge 0.1.1 reads the session's cached usage at startup, on attach and every 60 seconds, alongside quota-measurement events. Meter reads the private local file every 15 seconds. **Synced** reports the last accepted local connection check; a separate observation time records changed quota or a measurement event. Identical cache checks do not renew that observation time. Hover for both times and the source explanation. A connection silent for over ten minutes becomes stale. **Synced does not guarantee a new server response.**
+With **Monitor Claude** enabled, Meter requests subscription usage from the embedded CLI every three minutes, including between Code sessions. A successful direct read shows **Updated**.
 
-Terminal and older Claude snapshots show **Captured** and use capture age for staleness. A terminal status-line redraw may reuse earlier server data. Several local sessions share the latest snapshot without identifying its account; conflicting idle caches cannot replace newer quota. Neither the timer nor Meter's refresh button independently polls Anthropic or starts model turns. [Claude setup and storage](INSTALL.md#optional-claude-code-support) and [source boundaries](SECURITY.md#claude-bridge-boundaries) explain the two routes.
+For the fallback bridge, version 0.1.1 reads the session's cached usage at startup, on attach and every 60 seconds, alongside quota-measurement events. Meter reads the private local file every 15 seconds. **Synced** reports the last accepted local connection check; a separate observation time records changed quota or a measurement event. Identical cache checks do not renew that observation time. Hover for both times and the source explanation. A connection silent for over ten minutes becomes stale. **Synced does not guarantee a new server response.**
 
-The header refresh button reads Codex and the latest local Claude file immediately. An elapsed reset remains **Reset unconfirmed** until new quota data arrives, even if the Desktop bridge continues checking. Out-of-date data and unconfirmed resets pause estimates. An error in one service does not invalidate the other.
+Terminal and older Claude snapshots show **Captured** and use capture age for staleness. A terminal status-line redraw may reuse earlier server data. Several local sessions share the latest snapshot without identifying its account; conflicting idle caches cannot replace newer quota. The bridge timer reads the session cache. [Claude setup and storage](INSTALL.md#optional-claude-code-support) and [source boundaries](SECURITY.md#claude-bridge-boundaries) explain the two routes.
+
+The header refresh button requests Codex and Claude usage immediately. An elapsed reset remains **Reset unconfirmed** until new quota data arrives, even if the Desktop bridge continues checking. Out-of-date data and unconfirmed resets pause estimates. An error in one service does not invalidate the other.
 
 ## Banked resets
 

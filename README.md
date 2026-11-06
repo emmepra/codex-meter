@@ -27,13 +27,9 @@ The app is **ad hoc signed, without Apple Developer ID notarization**. If Gateke
 
 ### Connect Claude Code
 
-Claude monitoring is optional. Local sessions in **Claude Desktop's Code tab** need embedded Claude Code **2.1.299+**; terminal Claude Code uses a status-line bridge. Plain Claude chat, Cowork and remote/cloud sessions are outside this integration.
+In the current source, enable **Options → Monitor Claude** to read the signed-in CLI account’s subscription quota even when all Code sessions are closed. The direct reader uses Claude Desktop’s embedded CLI and has been verified with version **2.1.317**.
 
-1. Enable **Options → Monitor Claude**.
-2. Choose **Set Up Claude… → Enable Bridge**.
-3. In Desktop Code, run `/reload-plugins` or open a new local Code session.
-
-Setup uses the official plugin interface for Desktop or a terminal status line, preserving unrelated configuration. [Setup, custom status lines and removal](docs/INSTALL.md#optional-claude-code-support) are covered in the install guide.
+For the packaged 0.7.1 release, or as a fallback when direct reads are unavailable, choose **Set Up Claude… → Enable Bridge**. In Desktop Code, run `/reload-plugins` or open a new local Code session. See [bridge setup and terminal support](docs/INSTALL.md#optional-claude-code-support).
 
 **Upgrading from 0.7.0 to 0.7.1 with Claude Desktop?** Run **Set Up Claude…** once and reload/start the Code session to install bridge **0.1.1**. Updating the app alone does not replace the separately installed plugin.
 
@@ -48,9 +44,7 @@ Click a ring to open the overview. The numbers show **used quota**; each row als
 
 Missing quota stays unavailable, distinct from a reported zero. Out-of-date data and unconfirmed resets pause estimates; each service has its own state.
 
-**Updated** identifies a Codex read. **Synced** identifies a local Claude Desktop bridge check; **Captured** is used for terminal or older snapshots. Hover for exact check/observation times. Claude reads cached session quota, so a recent sync is **not a guarantee of a fresh server response**.
-
-The Desktop bridge checks its local cache every 60 seconds without starting a model turn, and Meter reads the saved snapshot every 15 seconds. The header refresh button reads Codex and that local file immediately.
+**Updated** identifies a successful Codex or Claude CLI read. Meter requests usage at launch, every three minutes, after wake and on manual refresh. **Synced** identifies a local Claude Desktop bridge check. **Captured** identifies a terminal or older snapshot. Hover for the source and timestamps.
 
 For [quota calculations](docs/USAGE.md#what-the-statistics-mean), [credit estimates](docs/USAGE.md#credits), [banked resets](docs/USAGE.md#banked-resets) and [Tibo notices](docs/USAGE.md#reset-posts-from-tibo), use the detailed usage guide.
 
@@ -58,7 +52,7 @@ For [quota calculations](docs/USAGE.md#what-the-statistics-mean), [credit estima
 
 Sign-in stays with the official CLIs. Meter does not ask for passwords or API keys, read Claude credentials, start model turns or redeem resets. **API billing is outside its scope.**
 
-There is no Meter backend or account/quota telemetry. Codex snapshots and recent credit observations stay in memory; Claude keeps one private sanitized quota snapshot with source and local times. Display preferences are saved. Optional update and RSS checks contact public sources without sending account or quota data. The CLIs manage their own authentication, network access and logs.
+There is no Meter backend or account/quota telemetry. Direct CLI readings and recent Codex credit observations stay in memory. The optional Claude bridge keeps one private sanitized quota snapshot with source and local times. Display preferences are saved. Optional update and RSS checks contact public sources without sending account or quota data. The CLIs manage their own authentication, network access and logs.
 
 See [data sources and compatibility](docs/USAGE.md#data-sources-and-compatibility), [Claude storage](docs/INSTALL.md#reading-freshness-and-removal), [provider design](docs/PROVIDERS.md) and [security boundaries](docs/SECURITY.md). This independent project is not affiliated with OpenAI or Anthropic.
 

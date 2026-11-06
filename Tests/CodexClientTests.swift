@@ -2,7 +2,7 @@ import Foundation
 import Darwin
 
 /// Offline checks for the subprocess boundary; never contacts Codex or reads account data.
-/// From the project root: swiftc -swift-version 5 Sources/CodexClient.swift Tests/CodexClientTests.swift -o /tmp/codex-client-tests
+/// From the project root: swiftc -swift-version 5 Sources/CLIProcess.swift Sources/CodexClient.swift Tests/CodexClientTests.swift -o /tmp/codex-client-tests
 /// Run the resulting /tmp/codex-client-tests executable (or scripts/test.sh).
 @main struct CodexClientTests {
     static func main() async throws {

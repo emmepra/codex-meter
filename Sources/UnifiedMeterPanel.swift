@@ -32,7 +32,7 @@ struct UnifiedMeterPanel: View {
                             else { Image(systemName: "arrow.clockwise").font(.system(size: 11)) }
                         }.frame(width: 24, height: 24).contentShape(Rectangle())
                     }.buttonStyle(.plain).disabled(selection.codex.refreshing)
-                        .help(selection.claudeEnabled ? "Refresh Codex and read the latest Claude capture." : "Refresh usage limits.")
+                        .help(selection.claudeEnabled ? "Refresh Codex and Claude usage." : "Refresh usage limits.")
                         .accessibilityLabel("Refresh usage")
                     MeterOptions(selection: selection, staticPreview: staticPreview).frame(width: 24, height: 24)
                 }.foregroundStyle(.secondary)
@@ -240,7 +240,7 @@ private struct ProviderOverview: View {
 
     private var missingReading: String {
         if store.refreshing { return "Reading usage limits…" }
-        if store.provider == .claude, store.updatedAt == nil { return "Waiting for Claude Code" }
+        if store.provider == .claude, store.updatedAt == nil { return store.error ?? "Waiting for Claude quota" }
         return "Usage limits unavailable"
     }
 
@@ -252,13 +252,16 @@ private struct ProviderOverview: View {
         else if age < 3_600 { relative = "\(Int(age / 60)) min ago" }
         else if age < 86_400 { relative = "\(Int(age / 3_600)) h ago" }
         else { relative = "\(Int(age / 86_400)) d ago" }
-        let label = store.syncsClaudeDesktop ? "Synced " : (store.provider == .claude ? "Captured " : "Updated ")
+        let label = store.syncsClaudeDesktop ? "Synced " : (store.provider == .claude && store.claudeSource != .cli ? "Captured " : "Updated ")
         return label + relative
     }
 
     private var freshnessHelp: String {
         let timestamp = store.updatedAt?.formatted(Date.FormatStyle(date: .complete, time: .shortened).locale(overviewLocale))
         if store.provider == .claude {
+            if store.claudeSource == .cli, let timestamp {
+                return "Claude CLI subscription quota read at \(timestamp)."
+            }
             if store.syncsClaudeDesktop, let checked = store.claudeCheckedAt {
                 let time = checked.formatted(Date.FormatStyle(date: .complete, time: .shortened).locale(overviewLocale))
                 return "Synced with Claude Code's local session: \(time).\nLast quota observation: \(timestamp ?? "unavailable").\nClaude may return cached values. Sync does not poll the server."
