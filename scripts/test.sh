@@ -8,7 +8,7 @@ xcrun swiftc -swift-version 5 -parse-as-library -D METER_TESTS -module-cache-pat
 .build/usage-tests
 
 xcrun swiftc -swift-version 5 -parse-as-library -D METER_TESTS -module-cache-path .build/module-cache \
-  Sources/CodexClient.swift Tests/CodexClientTests.swift -o .build/client-tests
+  Sources/CLIProcess.swift Sources/CodexClient.swift Tests/CodexClientTests.swift -o .build/client-tests
 .build/client-tests
 
 xcrun swiftc -swift-version 5 -parse-as-library -D METER_TESTS -module-cache-path .build/module-cache \
@@ -53,3 +53,8 @@ xcrun swiftc -swift-version 5 -parse-as-library -D METER_TESTS -module-cache-pat
 .build/claude-desktop-installer-tests
 
 node Tests/ClaudeDesktopBridgeTests.js
+
+xcrun swiftc -swift-version 5 -parse-as-library -D METER_TESTS -module-cache-path .build/module-cache \
+  Sources/UsageSnapshot.swift Sources/ClaudeUsage.swift Sources/ClaudeBridge.swift Sources/ClaudeDesktopBridge.swift \
+  Sources/CLIProcess.swift Sources/ClaudeQuotaClient.swift Tests/ClaudeQuotaClientTests.swift -o .build/claude-quota-client-tests
+.build/claude-quota-client-tests

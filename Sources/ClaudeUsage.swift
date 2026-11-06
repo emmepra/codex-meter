@@ -9,7 +9,7 @@ enum ClaudeUsage {
         .appendingPathComponent("Codex Meter", isDirectory: true)
         .appendingPathComponent("claude-usage.json")
 
-    enum Source: String, Codable { case desktop }
+    enum Source: String, Codable { case desktop, cli }
 
     struct Observation {
         let snapshot: UsageSnapshot
@@ -100,7 +100,7 @@ enum ClaudeUsage {
         return stored
     }
 
-    private static func observation(from stored: StoredObservation) throws -> Observation {
+    static func observation(from stored: StoredObservation) throws -> Observation {
         func normalized(_ window: Window?, minutes: Int) -> [String: Any]? {
             guard let window else { return nil }
             var value: [String: Any] = ["windowDurationMins": minutes]

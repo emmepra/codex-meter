@@ -71,8 +71,8 @@ struct MeterOptions: View {
     private func showClaudeSetup() {
         guard !settingUp else { return }
         let alert = NSAlert()
-        alert.messageText = "Connect Claude Code"
-        alert.informativeText = "Meter installs a small local plugin when Claude Desktop is available; otherwise it connects the terminal status line. Settings are backed up. No credentials are read. Keep Meter in Applications; moving it requires setup again."
+        alert.messageText = "Set Up Claude Session Bridge"
+        alert.informativeText = "Meter checks subscription usage automatically with a compatible Claude Desktop installation. For a fallback, connect local Code sessions using the Desktop plugin or terminal status line. Meter backs up the settings it changes."
         alert.addButton(withTitle: "Enable Bridge")
         alert.addButton(withTitle: "Cancel")
         guard alert.runModal() == .alertFirstButtonReturn, let executable = Bundle.main.executableURL else { return }

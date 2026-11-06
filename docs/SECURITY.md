@@ -4,6 +4,7 @@
 
 - Meter launches a locally installed Codex CLI with fixed arguments through `Process`, without a shell. Authentication stays with that CLI. Its executable and installation directories must be trusted; Meter does not authenticate the publisher of a discovered executable.
 - The CLI protocol starts no model turns and never redeems reset credits. Reads have a deadline and a response-buffer limit; stderr is discarded and the child process is closed after each read.
+- For direct Claude reads, Meter runs the embedded CLI with safe mode, no session persistence and an empty tool list. It sends only initialization and subscription usage control requests, with transcript scanning disabled. The CLI handles authentication.
 - The optional Claude bridge receives local quota from a bundled Desktop Code plugin or a terminal status-line command and saves only known windows, source and local timestamps. Its own code does not read Claude credentials or call Anthropic endpoints. Its quota file is local input, not authenticated account evidence; another process with the same user's access could replace it. See [Claude bridge boundaries](#claude-bridge-boundaries).
 - Reset posts come from a third-party HTTPS Nitter feed. Redirects, XML document types and entities are rejected; the streamed body, XML depth, item count and accepted text size are bounded. Matching text is displayed as text, not executed or rendered as HTML. Post links are reconstructed on `x.com` from validated numeric IDs.
 - Feed author and channel checks do not authenticate a tweet independently of the RSS provider. A compromised provider could forge or suppress announcements. Treat them as notices, not confirmation of account resets.
@@ -30,7 +31,7 @@ Credit pace requires fresh scoped metadata, a positive net decrease in the conti
 
 ## Claude bridge boundaries
 
-Claude support uses the documented [mods API](https://code.claude.com/docs/en/plugins/mods/reference) for Desktop Code sessions or the local [status-line interface](https://code.claude.com/docs/en/statusline#rate-limit-usage) for terminal sessions. Authentication remains with Claude Code; Meter does not collect, copy or intermediate subscription tokens. This follows the separation described in Anthropic's [authentication guidance](https://code.claude.com/docs/en/legal-and-compliance#authentication-and-credential-use).
+The optional Claude bridge uses the documented [mods API](https://code.claude.com/docs/en/plugins/mods/reference) for Desktop Code sessions or the local [status-line interface](https://code.claude.com/docs/en/statusline#rate-limit-usage) for terminal sessions. Authentication remains with Claude Code; Meter does not collect, copy or intermediate subscription tokens. This follows the separation described in Anthropic's [authentication guidance](https://code.claude.com/docs/en/legal-and-compliance#authentication-and-credential-use).
 
 The capture command treats stdin as untrusted input. It accepts only supported quota windows and known source/timestamp metadata, then writes one sanitized snapshot atomically with restrictive permissions. It never persists the full status-line payload, which can contain project and session information. The reader validates quota and timestamps before using the snapshot; missing quota values remain unknown.
 

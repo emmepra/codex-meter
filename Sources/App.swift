@@ -71,6 +71,7 @@ final class MeterStore: ObservableObject {
     private var fetchTask: Task<Void, Never>?
     private var resetRequestedFor: Double?
     private let client = CodexClient()
+    private var claudeReadError: String?
     private let claudeFileURL: URL
     init(provider: MeterProvider = .codex, claudeFileURL: URL = ClaudeUsage.defaultFileURL) {
         self.provider = provider
@@ -143,7 +144,7 @@ final class MeterStore: ObservableObject {
             Task { @MainActor in
                 guard let self else { return }
                 self.now = Date()
-                if self.provider == .claude { self.refresh() }
+                if self.provider == .claude { self.readClaudeBridge() }
                 if let reset = self.entry?.window.resetsAt, reset <= self.now.timeIntervalSince1970,
                    self.resetRequestedFor != reset {
                     self.resetRequestedFor = reset
@@ -167,22 +168,55 @@ final class MeterStore: ObservableObject {
             creditPace.observe(credits?.amount, scope: scope, at: date)
         } else { creditPace.reset() }
     }
+    private func applyClaude(_ reading: ClaudeUsage.Observation) {
+        snapshot = reading.snapshot
+        updatedAt = reading.observedAt
+        claudeSource = reading.source
+        claudeCheckedAt = reading.checkedAt
+    }
+
+    /// Keep the live CLI reading in memory. Use the bridge at startup or when the CLI fails.
+    func readClaudeBridge() {
+        now = Date()
+        if claudeSource == .cli && claudeReadError == nil { return }
+        do {
+            let capture = try ClaudeUsage.read(fileURL: claudeFileURL)
+            let captured = capture.checkedAt ?? capture.observedAt
+            // A stale file must not replace a newer, last-known CLI reading on a failed refresh.
+            if claudeSource == .cli, let updatedAt, captured <= updatedAt {
+                error = claudeReadError
+                return
+            }
+            applyClaude(capture)
+            error = now.timeIntervalSince(captured) > 600 || capture.snapshot.windows.isEmpty ? claudeReadError : nil
+        } catch {
+            self.error = claudeReadError ?? "Waiting for Claude quota."
+        }
+    }
+
     func refresh() {
         guard !refreshing else { return }
         if provider == .claude {
-            do {
-                let observation = try ClaudeUsage.read(fileURL: claudeFileURL)
-                snapshot = observation.snapshot
-                updatedAt = observation.observedAt
-                claudeSource = observation.source
-                claudeCheckedAt = observation.checkedAt
-                error = nil
-            } catch {
-                // Local bridge errors never expose file contents or account data.
-                self.error = "No Claude Code snapshot. Set up the bridge, then use Claude Code."
-            }
-            now = Date()
+            readClaudeBridge()
+            refreshing = true
             onChange?()
+            fetchTask = Task {
+                do {
+                    let reading = try await ClaudeQuotaClient.read()
+                    guard !Task.isCancelled else { return }
+                    applyClaude(reading)
+                    claudeReadError = nil
+                    error = nil
+                } catch {
+                    guard !Task.isCancelled else { return }
+                    claudeReadError = (error as? ClaudeQuotaClient.ReadError)?.errorDescription
+                        ?? "Could not read subscription usage from Claude Code."
+                    readClaudeBridge()
+                }
+                now = Date()
+                refreshing = false
+                onChange?()
+            }
             return
         }
         refreshing = true
@@ -306,7 +340,7 @@ final class MeterDelegate: NSObject, NSApplicationDelegate {
         if let window = button.window, window.isVisible, window.frame.height > 0 {
             pendingPanelOpen = false
             store.now = Date()
-            if selection.claudeEnabled { selection.claude.now = Date(); selection.claude.refresh() }
+            if selection.claudeEnabled { selection.claude.readClaudeBridge() }
             if store.updatedAt.map({ Date().timeIntervalSince($0) > 180 }) ?? true { store.refresh() }
             if panel.show() { return }
             pendingPanelOpen = true
@@ -339,6 +373,8 @@ final class MeterDelegate: NSObject, NSApplicationDelegate {
                 text += "\nBanked resets: " + source.resetAvailabilityText
                 if source.credits != nil { text += "\n" + source.creditBalanceLabel + ": " + source.creditBalanceText }
                 if source.announcements.hasUnread { text += "\nUnread Tibo post mentioning reset" }
+            } else if source.claudeSource == .cli {
+                text += "\nSource: Claude CLI subscription usage"
             } else {
                 text += source.syncsClaudeDesktop
                     ? "\nSource: Claude Code's local session state; server freshness is not known"

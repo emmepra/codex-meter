@@ -18,11 +18,11 @@ enum ClaudeDesktopBridge {
         }
     }
 
-    static func desktopCLI() -> URL? {
+    static func desktopCLI(minimumVersion: String = "2.1.299") -> URL? {
         let root = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Library/Application Support/Claude/claude-code", isDirectory: true)
         let versions = ((try? FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: nil)) ?? [])
-            .filter { $0.lastPathComponent.first?.isNumber == true && $0.lastPathComponent.compare("2.1.299", options: .numeric) != .orderedAscending }
+            .filter { $0.lastPathComponent.first?.isNumber == true && $0.lastPathComponent.compare(minimumVersion, options: .numeric) != .orderedAscending }
             .sorted { $0.lastPathComponent.compare($1.lastPathComponent, options: .numeric) == .orderedDescending }
         for version in versions {
             for build in (try? FileManager.default.contentsOfDirectory(at: version, includingPropertiesForKeys: nil)) ?? [] {
